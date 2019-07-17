@@ -9,7 +9,7 @@ using Oxide.Core.Libraries.Covalence;
 namespace Oxide.Plugins
 {
     [Info("Guarded Crate", "Bazz3l", "1.0.0")]
-    [Description("")]
+    [Description("Eliminate the scientits to gain high value loot")]
     class GuardedCrate : RustPlugin
     {
         #region Vars
@@ -20,15 +20,11 @@ namespace Oxide.Plugins
         const float RaycastDistance           = 500f;
         const float PlayerHeight              = 1.3f;
         const float DefaultCupboardZoneRadius = 3.0f;
-        const int MaxSpawnTrys                = 150;
+        const int MaxSpawnTries               = 150;
         const float RadiusFromRT              = 3.0f;
         const float RadiusFromCupboardZone    = 3.0f;
 
         public static GuardedCrate ins;
-        public bool EventActive   = false;
-        public uint ContainerID   = 0;
-        public List<uint> NPCList = new List<uint>();
-        public BaseEntity mapMarker;
         #endregion
 
         #region Config
@@ -73,14 +69,31 @@ namespace Oxide.Plugins
         }
         #endregion
 
+        #region Data
+        private StoredData storedData;
+
+        class StoredData {
+            public bool EventActive   = false;
+            public uint ContainerID   = 0;
+            public uint MarkerID      = 0;
+            public List<uint> NPCList = new List<uint>();
+            public Dictionary<ulong, int> Players = new Dictionary<ulong, int>();
+        }
+
+        private void SaveData() => Interface.Oxide.DataFileSystem.WriteObject(Name, storedData, true);
+        #endregion
+
         #region Lang
         protected override void LoadDefaultMessages()
         {
             lang.RegisterMessages(new Dictionary<string, string>
             {
-               ["EventStart"]    = "Guarded crate event started at {0}",
-               ["EventEnded"]    = "Guarded crate event ended.",
-               ["EventComplete"] = "{0}, compleated the guarded crate event."
+               ["EventStart"]      = "Guarded crate event started at {0}",
+               ["EventEnded"]      = "Guarded crate event ended.",
+               ["EventComplete"]   = "{0}, compleated the guarded crate event.",
+               ["StatsList"]       = "Top:\n{0}",
+               ["StatsPlayer"]     = "Events complete: {0}",
+               ["StatsPlayerNone"] = "You have not completed any events"
             }, this);
         }
         #endregion
@@ -88,8 +101,12 @@ namespace Oxide.Plugins
         #region Oxide
         private void Init()
         {
-            config = Config.ReadObject<PluginConfig>();
+            config     = Config.ReadObject<PluginConfig>();
+            storedData = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name);
+            SaveData();
         }
+
+        private void Unload() => CleanEvent();
 
         private void OnServerInitialized()
         {
@@ -103,27 +120,23 @@ namespace Oxide.Plugins
                 return;
             }
 
-            if (entity.net.ID != ContainerID || !EventActive)
+            if (entity.net.ID != storedData.ContainerID || !storedData.EventActive)
             {
                 return;
             }
 
-            CleanEvent();
+            if (storedData.Players.ContainsKey(player.userID))
+            {
+                storedData.Players[player.userID]++;
+            }
+            else
+            {
+                storedData.Players.Add(player.userID, 1);
+            }
+
+            CleanEvent(); 
 
             PrintToChat(Lang("EventComplete", null, player.displayName.ToString()));
-        }
-
-        private void OnItemRemovedFromContainer(ItemContainer container, Item item)
-        {
-             if (container == null)
-             {
-                 return;
-             }
-
-             if (container.uid == ContainerID && container.itemList.Count == 0)
-             {
-                 container.Kill();
-             }
         }
         #endregion
  
@@ -136,39 +149,34 @@ namespace Oxide.Plugins
                 return;
             }
 
-            Vector3 position = (Vector3)spawnPos;
-
-            CreateEvent(position);
-
-            EventActive = true;
-
-            PrintToChat(Lang("EventStart", null, GridReference(position)));
+            CreateEvent((Vector3)spawnPos);
         }
 
-        public void CleanEvent()
+        private void CleanEvent()
         {
-            foreach(uint npcID in NPCList)
+            var marker = BaseNetworkable.serverEntities?.Find(storedData.MarkerID) as VendingMachineMapMarker; 
+            if (marker != null)
+                marker.Kill();
+
+            foreach(uint npcID in storedData.NPCList)
             {
                var npc = BaseNetworkable.serverEntities?.Find(npcID) as Scientist;
                if (npc != null)
                    npc.Kill();
             }
 
-            NPCList.Clear();
-
-            EventActive = false;
-
-            if (mapMarker != null)
-            {
-                mapMarker.Kill();
-            }
+            storedData.MarkerID    = 0;
+            storedData.ContainerID = 0;
+            storedData.NPCList.Clear();
+            storedData.EventActive = false;
+            SaveData();
 
             PrintToChat(Lang("EventEnded", null));
         }
 
         public void CreateEvent(Vector3 position)
         {
-            if (EventActive)
+            if (storedData.EventActive)
             {
                 return;
             }
@@ -181,13 +189,19 @@ namespace Oxide.Plugins
 
             crate.Spawn();
             crate.StartHacking();
-            ContainerID = crate.net.ID;
-            CreateLoot(crate);
+
+            CreateLootContainer(crate);
             CreateMarker(position);
             CreateNPCs(position);
+
+            storedData.ContainerID = crate.net.ID;
+            storedData.EventActive = true;
+            SaveData();
+
+            PrintToChat(Lang("EventStart", null, GridReference(position)));
         }
 
-        private void CreateLoot(HackableLockedCrate container)
+        private void CreateLootContainer(HackableLockedCrate container)
         {
             if (container == null)
             {
@@ -221,14 +235,17 @@ namespace Oxide.Plugins
                     continue;
                 }
 
-                var bot = GameManager.server?.CreateEntity(ScientistPrefab, newPosition) as Scientist;
-                if (bot == null)
+                var npc = GameManager.server?.CreateEntity(ScientistPrefab, newPosition) as Scientist;
+                if (npc == null)
                 {
                     continue;
                 }
 
-                bot.Spawn();
-                bot.gameObject.AddComponent<Guard>();
+                npc.Spawn();
+                npc.gameObject.AddComponent<Guard>();
+
+                if(!storedData.NPCList.Contains(npc.net.ID))
+                    storedData.NPCList.Add(npc.net.ID);
             }
         }
 
@@ -244,14 +261,18 @@ namespace Oxide.Plugins
             customMarker.markerShopName = "Guarded Crate Event";
             marker.Spawn();
 
-            mapMarker = marker;
+            storedData.MarkerID = marker.net.ID;
+        }
+
+        private void AwardPlayer(BasePlayer player)
+        {
         }
         #endregion
 
         #region Helpers
         private Vector3? GetSpawnPos()
         {
-            for (int i = 0; i < MaxSpawnTrys; i++)
+            for (int i = 0; i < MaxSpawnTries; i++)
             {
                 Vector3 randomPos = new Vector3(
                     UnityEngine.Random.Range(-TerrainMeta.Size.x / 2, TerrainMeta.Size.x / 2),
@@ -353,10 +374,6 @@ namespace Oxide.Plugins
 
                spawnPoint = npc.transform.position;
                roamRadius = UnityEngine.Random.Range(10, ins.config.NPCRoamRadius);
-
-               var netID = npc.net.ID;
-               if (netID != null && !ins.NPCList.Contains(netID))
-                   ins.NPCList.Add(npc.net.ID);
           } 
 
           void Update()
@@ -398,15 +415,58 @@ namespace Oxide.Plugins
         [ChatCommand("guarded")]
         private void GuardedCommand(BasePlayer player, string command, string[] args)
         {
-            if (player.IsAdmin && !EventActive)
-                StartEvent();                
+            if (player == null)
+            {
+                return;
+            }
+
+            if (player.IsAdmin && !storedData.EventActive)
+            {
+                StartEvent();
+            }                
         }
 
         [ChatCommand("guarded-end")]
         private void GuardedEndCommand(BasePlayer player, string command, string[] args)
         {
-            if (player.IsAdmin && EventActive)
+            if (player == null)
+            {
+                return;
+            }
+
+            if (player.IsAdmin && storedData.EventActive)
+            {
                 CleanEvent();
+            }
+        }
+
+        [ChatCommand("guarded-top")]
+        private void GuardedTopCommand(BasePlayer player, string command, string[] args)
+        {
+            if (player == null)
+            {
+                return;
+            }
+
+            //PrintToChat(player, Lang("StatsList", player.userID.ToString()));
+        }
+
+        [ChatCommand("guarded-stats")]
+        private void GuardedStatsCommand(BasePlayer player, string command, string[] args)
+        {
+            if (player == null)
+            {
+                return;
+            }
+
+            if (storedData.Players.ContainsKey(player.userID))
+            {
+                PrintToChat(player, Lang("StatsPlayer", player.userID.ToString(), storedData.Players[player.userID]));
+
+                return;
+            }
+
+            PrintToChat(player, Lang("StatsPlayerNone", player.userID.ToString()));
         }
         #endregion
     }
