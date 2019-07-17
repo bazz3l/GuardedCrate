@@ -310,7 +310,7 @@ namespace Oxide.Plugins
         public string GridReference(Vector3 position)
         {
             Vector2 roundedPos = new Vector2(World.Size / 2 + position.x, World.Size / 2 - position.z);
-            string grid = $"{NumberToLetter(Mathf.FloorToInt(roundedPos.x / 150))}{Mathf.FloorToInt(roundedPos.y / 150)}";
+            string grid = $"{NumberToLetter(Mathf.FloorToInt(roundedPos.x / 145))}{Mathf.FloorToInt(roundedPos.y / 145)}";
             return grid;
         }
 
@@ -338,6 +338,7 @@ namespace Oxide.Plugins
            public NPCPlayerApex npc;
            public Vector3 spawnPoint;
            public bool goingHome;
+           public int roamRadius;
 
            void Start()
            {
@@ -351,6 +352,7 @@ namespace Oxide.Plugins
                npc.utilityAiComponent.enabled = true;
 
                spawnPoint = npc.transform.position;
+               roamRadius = UnityEngine.Random.Range(10, ins.config.NPCRoamRadius);
 
                var netID = npc.net.ID;
                if (netID != null && !ins.NPCList.Contains(netID))
@@ -372,7 +374,7 @@ namespace Oxide.Plugins
                        goingHome = true;
                    }
 
-                   if (goingHome && distance > ins.config.NPCRoamRadius)
+                   if (goingHome && distance > roamRadius)
                    {
                        npc.CurrentBehaviour = BaseNpc.Behaviour.Wander;
                        npc.SetFact(NPCPlayerApex.Facts.Speed, (byte)NPCPlayerApex.SpeedEnum.Walk, true, true);
