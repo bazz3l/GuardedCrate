@@ -25,7 +25,7 @@ namespace Oxide.Plugins
         const float RadiusFromCupboardZone    = 3.0f;
 
         public static GuardedCrate ins;
-        private BaseEntity MapMarker; 
+        private BaseEntity mapMarker; 
         #endregion
 
         #region Config
@@ -89,7 +89,7 @@ namespace Oxide.Plugins
             {
                ["EventStart"]      = "Guarded crate event started at {0}",
                ["EventEnded"]      = "Guarded crate event ended.",
-               ["EventComplete"]   = "{0}, compleated the guarded crate event.",
+               ["EventComplete"]   = "{0}, completed the guarded crate event.",
                ["StatsList"]       = "Top:\n{0}",
                ["StatsPlayer"]     = "Events complete: {0}",
                ["StatsPlayerNone"] = "You have not completed any events"
@@ -148,8 +148,10 @@ namespace Oxide.Plugins
 
         private void CleanEvent()
         { 
-            if (MapMarker != null)
-                MapMarker.Kill();
+            if (mapMarker != null)
+            {
+                mapMarker.Kill();
+            }
 
             foreach (var gameObj in UnityEngine.Object.FindObjectsOfType(typeof(EventGuard)))
             {
@@ -198,7 +200,7 @@ namespace Oxide.Plugins
             customMarker.markerShopName = "Guarded Crate Event";
             marker.Spawn();
 
-            MapMarker = marker;
+            mapMarker = marker;
 
             for (int i = 0; i < config.NPCCount; i++)
             {
@@ -340,6 +342,7 @@ namespace Oxide.Plugins
            public Vector3 spawnPoint;
            public bool goingHome;
            public int roamRadius;
+           public bool shouldChase = false;
 
            void Start()
            {
@@ -349,11 +352,17 @@ namespace Oxide.Plugins
                    return;
                }
 
+               if (UnityEngine.Random.Range(0, 1) > 0)
+                   shouldChase = true;
+
                npc.Stats.AggressionRange      = ins.config.NPCAgressionRange;
                npc.utilityAiComponent.enabled = true;
+               npc.SpawnPosition              = npc.transform.position;
+               npc.Destination                = npc.transform.position;
+               npc.Resume();
 
                spawnPoint = npc.transform.position;
-               roamRadius = UnityEngine.Random.Range(10, ins.config.NPCRoamRadius);
+               roamRadius = UnityEngine.Random.Range(0, ins.config.NPCRoamRadius);
           } 
 
           void Update()
@@ -363,13 +372,11 @@ namespace Oxide.Plugins
                    return;
                }
 
-               if (npc.GetNavAgent.isOnNavMesh)
+               if (!shouldChase && npc.GetNavAgent.isOnNavMesh)
                {
                    var distance = Vector3.Distance(npc.transform.position, spawnPoint);
-                   if (!goingHome && distance > 0)
-                   {
+                   if (!goingHome && distance > roamRadius)
                        goingHome = true;
-                   }
 
                    if (goingHome && distance > roamRadius)
                    {
@@ -379,14 +386,15 @@ namespace Oxide.Plugins
                        npc.GetNavAgent.SetDestination(spawnPoint);
                        npc.Destination = spawnPoint;
                    } else {
-                      goingHome = false;
+                       goingHome = false;
                    }
                }
            }
 
            void OnDestroy()
            {
-               npc.Kill();
+               if (npc != null)
+                   npc.Kill();
 
                Destroy(this);
            }
@@ -430,7 +438,18 @@ namespace Oxide.Plugins
                 return;
             }
 
-            //PrintToChat(player, Lang("StatsList", player.userID.ToString()));
+            Dictionary<string, int> playerStats = new Dictionary<string, int>();
+
+            foreach(var p in storedData.Players)
+            {
+                var playerName = covalence.Players?.FindPlayerById(p.Key.ToString())?.Name;
+                if (playerName != null)
+                    playerStats.Add(playerName, p.Value);
+            }
+
+            string stats = string.Join("\n", playerStats.Select(x => x.Key + ":" + x.Value).Take(5).ToArray());
+
+            PrintToChat(player, Lang("StatsList", player.userID.ToString(), stats));
         }
 
         [ChatCommand("guarded-stats")]
@@ -444,7 +463,6 @@ namespace Oxide.Plugins
             if (storedData.Players.ContainsKey(player.userID))
             {
                 PrintToChat(player, Lang("StatsPlayer", player.userID.ToString(), storedData.Players[player.userID]));
-
                 return;
             }
 
