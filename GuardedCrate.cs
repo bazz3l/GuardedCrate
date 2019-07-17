@@ -320,6 +320,11 @@ namespace Oxide.Plugins
             void Start()
             {
                  crate = GetComponent<HackableLockedCrate>();
+                 if (crate == null)
+                 {
+                     return;
+                 }
+
                  crate.StartHacking();
             }
 
@@ -339,6 +344,11 @@ namespace Oxide.Plugins
            void Start()
            {
                npc = GetComponent<NPCPlayerApex>();
+               if (npc == null)
+               {
+                   return;
+               }
+
                npc.Stats.AggressionRange      = ins.config.NPCAgressionRange;
                npc.utilityAiComponent.enabled = true;
 
