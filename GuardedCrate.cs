@@ -25,6 +25,7 @@ namespace Oxide.Plugins
         const float RadiusFromCupboardZone    = 3.0f;
 
         public static GuardedCrate ins;
+        private BaseEntity MapMarker; 
         #endregion
 
         #region Config
@@ -75,8 +76,6 @@ namespace Oxide.Plugins
         class StoredData {
             public bool EventActive   = false;
             public uint ContainerID   = 0;
-            public uint MarkerID      = 0;
-            public List<uint> NPCList = new List<uint>();
             public Dictionary<ulong, int> Players = new Dictionary<ulong, int>();
         }
 
@@ -115,12 +114,7 @@ namespace Oxide.Plugins
 
         private void OnLootEntity(BasePlayer player, StorageContainer entity)
         {
-            if (entity == null)
-            {
-                return;
-            }
-
-            if (entity.net.ID != storedData.ContainerID || !storedData.EventActive)
+            if (entity == null || entity.net.ID != storedData.ContainerID || !storedData.EventActive)
             {
                 return;
             }
@@ -134,7 +128,7 @@ namespace Oxide.Plugins
                 storedData.Players.Add(player.userID, 1);
             }
 
-            CleanEvent(); 
+            CleanEvent();
 
             PrintToChat(Lang("EventComplete", null, player.displayName.ToString()));
         }
@@ -153,22 +147,17 @@ namespace Oxide.Plugins
         }
 
         private void CleanEvent()
-        {
-            var marker = BaseNetworkable.serverEntities?.Find(storedData.MarkerID) as VendingMachineMapMarker; 
-            if (marker != null)
-                marker.Kill();
+        { 
+            if (MapMarker != null)
+                MapMarker.Kill();
 
-            foreach(uint npcID in storedData.NPCList)
+            foreach (var gameObj in UnityEngine.Object.FindObjectsOfType(typeof(EventGuard)))
             {
-               var npc = BaseNetworkable.serverEntities?.Find(npcID) as Scientist;
-               if (npc != null)
-                   npc.Kill();
+                UnityEngine.Object.Destroy(gameObj);
             }
 
-            storedData.MarkerID    = 0;
-            storedData.ContainerID = 0;
-            storedData.NPCList.Clear();
             storedData.EventActive = false;
+            storedData.ContainerID = 0;
             SaveData();
 
             PrintToChat(Lang("EventEnded", null));
@@ -176,11 +165,6 @@ namespace Oxide.Plugins
 
         public void CreateEvent(Vector3 position)
         {
-            if (storedData.EventActive)
-            {
-                return;
-            }
-
             HackableLockedCrate crate = GameManager.server?.CreateEntity(CratePrefab, position) as HackableLockedCrate;
             if (crate == null)
             {
@@ -188,27 +172,8 @@ namespace Oxide.Plugins
             }
 
             crate.Spawn();
-            crate.StartHacking();
-
-            CreateLootContainer(crate);
-            CreateMarker(position);
-            CreateNPCs(position);
-
-            storedData.ContainerID = crate.net.ID;
-            storedData.EventActive = true;
-            SaveData();
-
-            PrintToChat(Lang("EventStart", null, GridReference(position)));
-        }
-
-        private void CreateLootContainer(HackableLockedCrate container)
-        {
-            if (container == null)
-            {
-                return;
-            }
-
-            container.inventory.Clear();
+            crate.gameObject.AddComponent<HackableLootCrate>();
+            crate.inventory.Clear();
 
             NextFrame(() => {
                 foreach(var lootItem in config.LootItems)
@@ -219,13 +184,22 @@ namespace Oxide.Plugins
                         continue;
                     }
 
-                    item.MoveToContainer(container.inventory);
+                    item.MoveToContainer(crate.inventory);
                 }
             });
-        }
 
-        private void CreateNPCs(Vector3 position)
-        {
+            BaseEntity marker = GameManager.server?.CreateEntity(MapMarkerPrefab, position);
+            if (marker == null)
+            {
+                return;
+            }
+
+            VendingMachineMapMarker customMarker = marker.GetComponent<VendingMachineMapMarker>();
+            customMarker.markerShopName = "Guarded Crate Event";
+            marker.Spawn();
+
+            MapMarker = marker;
+
             for (int i = 0; i < config.NPCCount; i++)
             {
                 Vector3 newPosition = position + (UnityEngine.Random.onUnitSphere * config.NPCRadius);
@@ -242,30 +216,14 @@ namespace Oxide.Plugins
                 }
 
                 npc.Spawn();
-                npc.gameObject.AddComponent<Guard>();
-
-                if(!storedData.NPCList.Contains(npc.net.ID))
-                    storedData.NPCList.Add(npc.net.ID);
-            }
-        }
-
-        private void CreateMarker(Vector3 position)
-        {
-            BaseEntity marker = GameManager.server?.CreateEntity(MapMarkerPrefab, position);
-            if (marker == null)
-            {
-                return;
+                npc.gameObject.AddComponent<EventGuard>();
             }
 
-            VendingMachineMapMarker customMarker = marker.GetComponent<VendingMachineMapMarker>();
-            customMarker.markerShopName = "Guarded Crate Event";
-            marker.Spawn();
+            storedData.ContainerID = crate.net.ID;
+            storedData.EventActive = true;
+            SaveData();
 
-            storedData.MarkerID = marker.net.ID;
-        }
-
-        private void AwardPlayer(BasePlayer player)
-        {
+            PrintToChat(Lang("EventStart", null, GridReference(position)));
         }
         #endregion
 
@@ -347,6 +305,7 @@ namespace Oxide.Plugins
                     text += System.Convert.ToChar(65 + i);
                 }
             }
+
             return text + System.Convert.ToChar(65 + num3).ToString();
         }
 
@@ -354,7 +313,23 @@ namespace Oxide.Plugins
         #endregion
 
         #region Scripts
-        public class Guard : MonoBehaviour
+        public class HackableLootCrate : MonoBehaviour
+        {
+            public HackableLockedCrate crate;
+
+            void Start()
+            {
+                 crate = GetComponent<HackableLockedCrate>();
+                 crate.StartHacking();
+            }
+
+            void OnDestroy()
+            {
+                Destroy(this);
+            }
+        }
+
+        public class EventGuard : MonoBehaviour
         {
            public NPCPlayerApex npc;
            public Vector3 spawnPoint;
@@ -364,11 +339,6 @@ namespace Oxide.Plugins
            void Start()
            {
                npc = GetComponent<NPCPlayerApex>();
-               if (npc == null)
-               {
-                   return;
-               }
-
                npc.Stats.AggressionRange      = ins.config.NPCAgressionRange;
                npc.utilityAiComponent.enabled = true;
 
@@ -406,6 +376,8 @@ namespace Oxide.Plugins
 
            void OnDestroy()
            {
+               npc.Kill();
+
                Destroy(this);
            }
         }
