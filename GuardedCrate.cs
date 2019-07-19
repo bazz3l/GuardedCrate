@@ -2,6 +2,7 @@ using UnityEngine;
 using System.Linq;
 using System.Collections.Generic;
 using Rust;
+using Facepunch;
 using Oxide.Core;
 using Oxide.Core.Configuration;
 using Oxide.Core.Libraries.Covalence;
@@ -200,7 +201,6 @@ namespace Oxide.Plugins
             }
 
             cargoplane.InitDropPosition(eventPosition);
-            cargoplane.Spawn();
             cargoplane.gameObject.AddComponent<CargoPlaneComponent>();
         }
 
@@ -215,7 +215,7 @@ namespace Oxide.Plugins
                     continue;
                 }
 
-                var npc = GameManager.server?.CreateEntity(ScientistPrefab, newPosition) as Scientist;
+                Scientist npc = GameManager.server?.CreateEntity(ScientistPrefab, newPosition) as Scientist;
                 if (npc == null)
                 {
                     continue;
@@ -228,7 +228,7 @@ namespace Oxide.Plugins
 
         private void SpawnHackableLockedCrate()
         {
-            Vector3 newPos = eventPosition + new Vector3(0.0f, 200.0f, 0.0f);
+            Vector3 newPos = eventPosition + new Vector3(0.0f, 250.0f, 0.0f);
 
             HackableLockedCrate crate = GameManager.server?.CreateEntity(CratePrefab, newPos) as HackableLockedCrate;
             if (crate == null)
@@ -238,28 +238,26 @@ namespace Oxide.Plugins
 
             crate.Spawn();
             crate.gameObject.AddComponent<HackableLootCrateComponent>();
+            crate.gameObject.AddComponent<ParachuteComponent>();
             crate.inventory.Clear();
 
-            //NextFrame(() => {
-                while (crate.inventory.itemList.Count > 0)
+            while (crate.inventory.itemList.Count > 0)
+            {
+                var item = crate.inventory.itemList[0];
+                item.RemoveFromContainer();
+                item.Remove(0f);
+            }
+
+            foreach (var loot in config.LootItems)
+            {
+                Item item = ItemManager?.CreateByName(loot.Key, loot.Value);
+                if (item == null)
                 {
-                    var item = crate.inventory.itemList[0];
-                    item.RemoveFromContainer();
-                    item.Remove(0f);
+                    continue;
                 }
 
-                foreach (var loot in config.LootItems)
-                {
-                    Item item = ItemManager?.CreateByName(loot.Key, loot.Value);
-                    if (item == null)
-                    {
-                        continue;
-                    }
-
-                    Puts("Event loot item {0} added to the loot container", loot.Key);
-                    item.MoveToContainer(crate.inventory);
-                }
-            //});
+                item.MoveToContainer(crate.inventory);
+            }
 
             storedData.ContainerID = crate.net.ID;
         }
@@ -365,6 +363,7 @@ namespace Oxide.Plugins
                  }
 
                  cargoplane.dropped = true;
+                 cargoplane.Spawn();
             }
 
             void Update()
@@ -393,6 +392,8 @@ namespace Oxide.Plugins
         public class HackableLootCrateComponent : MonoBehaviour
         {
             public HackableLockedCrate crate;
+            public BaseEntity parachute;
+            public Vector3 spawnPoint;
 
             void Start()
             {
@@ -404,14 +405,7 @@ namespace Oxide.Plugins
 
                  crate.StartHacking();
                  
-                 Rigidbody rb = crate.GetComponent<Rigidbody>();
-                 rb.drag = 2f;
-                 rb.AddForce(-transform.up * -1f);
-                 rb.useGravity = true;
-            }
-
-            void Update()
-            {
+                 spawnPoint = crate.transform.position;
             }
 
             void OnDestroy()
@@ -420,7 +414,7 @@ namespace Oxide.Plugins
             }
         }
 
-        public class GuardComponent : MonoBehaviour
+        public class GuardComponent : FacepunchBehaviour
         {
             public NPCPlayerApex npc;
             public Vector3 spawnPoint;
@@ -437,43 +431,97 @@ namespace Oxide.Plugins
 
                 npc.utilityAiComponent.enabled = true;
                 npc.Stats.AggressionRange      = ins.config.NPCAgressionRange;
+                npc.Stats.VisionRange          = ins.config.NPCAgressionRange;
                 npc.SpawnPosition              = npc.transform.position;
                 npc.Destination                = npc.transform.position;
                 npc.Resume();
-
+                
                 spawnPoint = npc.transform.position;
                 roamRadius = UnityEngine.Random.Range(0, ins.config.NPCRoamRadius);
             } 
 
             void Update()
             {
-                if (npc != null && npc.GetNavAgent.isOnNavMesh)
+                if (npc == null || npc.GetNavAgent.isOnNavMesh)
                 {
-                    var distance = Vector3.Distance(npc.transform.position, spawnPoint);
-                    if (!goingHome && distance > roamRadius)
-                    {
-                        goingHome = true;
-                    }
-
-                    if (goingHome && distance > roamRadius)
-                    {
-                        npc.CurrentBehaviour = BaseNpc.Behaviour.Wander;
-                        npc.SetFact(NPCPlayerApex.Facts.Speed, (byte)NPCPlayerApex.SpeedEnum.Walk, true, true);
-                        npc.TargetSpeed = ins.config.NPCTargetSpeed;
-                        npc.GetNavAgent.SetDestination(spawnPoint);
-                        npc.Destination = spawnPoint;
-                    }
-                    else 
-                    {
-                        goingHome = false;
-                    }
+                    return;
                 }
+
+                var distance = Vector3.Distance(npc.transform.position, spawnPoint);
+                if (!goingHome && distance > roamRadius)
+                {
+                    goingHome = true;
+                }
+
+                if (goingHome && distance > roamRadius)
+                {
+                    npc.CurrentBehaviour = BaseNpc.Behaviour.Wander;
+                    npc.SetFact(NPCPlayerApex.Facts.Speed, (byte)NPCPlayerApex.SpeedEnum.Walk, true, true);
+                    npc.TargetSpeed = ins.config.NPCTargetSpeed;
+                    //npc.GetNavAgent.SetDestination(spawnPoint);
+                    npc.Destination = spawnPoint;
+                }
+                else 
+                {
+                    goingHome = false;
+                }
+            }
+
+            void OnCollisionEnter(Collision col)
+            {
             }
 
             void OnDestroy()
             {
                 if (npc != null)
                     npc.Kill();
+            }
+        }
+
+        public class ParachuteComponent : FacepunchBehaviour
+        {
+            public BaseEntity parachute;
+            public BaseEntity entity;
+
+            void Start()
+            {
+                entity = this.GetComponent<BaseEntity>();
+                if (entity == null)
+                {
+                    return;
+                }
+
+                string chutePrefab = "assets/prefabs/misc/parachute/parachute.prefab";
+                parachute = GameManager.server?.CreateEntity(chutePrefab, entity.transform.position) as BaseEntity;
+                if (parachute == null)
+                {
+                    return;
+                }
+
+                parachute.Spawn();
+                parachute.SetParent(entity);
+                parachute.transform.localPosition = new Vector3(0, 1f, 0);
+
+                Rigidbody rb = entity.GetComponent<Rigidbody>();
+                rb.drag      = 2f;
+                rb.AddForce(-transform.up * -1f);
+                rb.useGravity = true;
+            }
+
+            void Update()
+            {
+            }
+
+            void OnCollisionEnter(Collision col)
+            {
+                parachute?.Kill();
+
+                OnDestroy();
+            }
+
+            void OnDestroy()
+            {
+                Destroy(this);
             }
         }
         #endregion
@@ -524,9 +572,12 @@ namespace Oxide.Plugins
                     playerStats.Add(playerName, p.Value);
             }
 
-            string stats = string.Join("\n", playerStats.Select(x => x.Key + ":" + x.Value).Take(5).ToArray());
+            var stats = playerStats.OrderByDescending(x => x.Value)
+            .Select(x => x.Key + ": " + x.Value)
+            .Take(5)
+            .ToArray();
 
-            PrintToChat(player, Lang("StatsList", player.userID.ToString(), stats));
+            PrintToChat(player, Lang("StatsList", player.userID.ToString(), string.Join("\n", stats)));
         }
 
         [ChatCommand("guarded-stats")]
