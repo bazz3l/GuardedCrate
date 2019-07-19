@@ -15,6 +15,7 @@ namespace Oxide.Plugins
     {
         #region Vars
         const string CratePrefab              = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
+        const string CargoPrefab              = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
         const string MapMarkerPrefab          = "assets/prefabs/deployable/vendingmachine/vending_mapmarker.prefab";
         const string ScientistPrefab          = "assets/prefabs/npc/scientist/scientist.prefab";
         const float HeightToRaycast           = 250f;
@@ -152,8 +153,7 @@ namespace Oxide.Plugins
 
         private void CleanEvent()
         { 
-            if (mapMarker != null)
-                mapMarker.Kill();
+            mapMarker?.Kill();
 
             foreach (var gameObj in UnityEngine.Object.FindObjectsOfType(typeof(GuardComponent)))
             {
@@ -194,7 +194,7 @@ namespace Oxide.Plugins
 
         private void SpawnCargoPlane()
         {
-            CargoPlane cargoplane = GameManager.server?.CreateEntity("assets/prefabs/npc/cargo plane/cargo_plane.prefab") as CargoPlane;
+            CargoPlane cargoplane = GameManager.server?.CreateEntity(CargoPrefab) as CargoPlane;
             if (cargoplane == null)
             {
                 return;
@@ -389,7 +389,7 @@ namespace Oxide.Plugins
             }
         }
 
-        public class HackableLootCrateComponent : MonoBehaviour
+        public class HackableLootCrateComponent : FacepunchBehaviour
         {
             public HackableLockedCrate crate;
             public BaseEntity parachute;
@@ -406,6 +406,11 @@ namespace Oxide.Plugins
                  crate.StartHacking();
                  
                  spawnPoint = crate.transform.position;
+            }
+
+            void OnCollisionEnter(Collision col)
+            {
+                ins.Puts("Guarded crate landed");
             }
 
             void OnDestroy()
@@ -434,15 +439,14 @@ namespace Oxide.Plugins
                 npc.Stats.VisionRange          = ins.config.NPCAgressionRange;
                 npc.SpawnPosition              = npc.transform.position;
                 npc.Destination                = npc.transform.position;
-                npc.Resume();
                 
                 spawnPoint = npc.transform.position;
-                roamRadius = UnityEngine.Random.Range(0, ins.config.NPCRoamRadius);
+                roamRadius = UnityEngine.Random.Range(10, ins.config.NPCRoamRadius);
             } 
 
             void Update()
             {
-                if (npc == null || npc.GetNavAgent.isOnNavMesh)
+                if (npc == null || !npc.GetNavAgent.isOnNavMesh)
                 {
                     return;
                 }
@@ -458,7 +462,7 @@ namespace Oxide.Plugins
                     npc.CurrentBehaviour = BaseNpc.Behaviour.Wander;
                     npc.SetFact(NPCPlayerApex.Facts.Speed, (byte)NPCPlayerApex.SpeedEnum.Walk, true, true);
                     npc.TargetSpeed = ins.config.NPCTargetSpeed;
-                    //npc.GetNavAgent.SetDestination(spawnPoint);
+                    npc.GetNavAgent.SetDestination(spawnPoint);
                     npc.Destination = spawnPoint;
                 }
                 else 
@@ -473,8 +477,7 @@ namespace Oxide.Plugins
 
             void OnDestroy()
             {
-                if (npc != null)
-                    npc.Kill();
+                 npc?.Kill();
             }
         }
 
@@ -506,10 +509,6 @@ namespace Oxide.Plugins
                 rb.drag      = 2f;
                 rb.AddForce(-transform.up * -1f);
                 rb.useGravity = true;
-            }
-
-            void Update()
-            {
             }
 
             void OnCollisionEnter(Collision col)
