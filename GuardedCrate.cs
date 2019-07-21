@@ -14,10 +14,12 @@ namespace Oxide.Plugins
     class GuardedCrate : RustPlugin
     {
         #region Vars
-        const string CratePrefab              = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
-        const string CargoPrefab              = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
-        const string MapMarkerPrefab          = "assets/prefabs/deployable/vendingmachine/vending_mapmarker.prefab";
-        const string ScientistPrefab          = "assets/prefabs/npc/scientist/scientist.prefab";
+        const string CratePrefab     = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
+        const string CargoPrefab     = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
+        const string ChutePrefab     = "assets/prefabs/misc/parachute/parachute.prefab";
+        const string MarkerPrefab    = "assets/prefabs/deployable/vendingmachine/vending_mapmarker.prefab";
+        const string ScientistPrefab = "assets/prefabs/npc/scientist/scientist.prefab";
+
         const float HeightToRaycast           = 250f;
         const float RaycastDistance           = 500f;
         const float PlayerHeight              = 1.3f;
@@ -152,8 +154,9 @@ namespace Oxide.Plugins
         }
 
         private void CleanEvent()
-        { 
-            mapMarker?.Kill();
+        {
+            if (mapMarker != null && !mapMarker.IsDestroyed)
+                mapMarker.Kill();
 
             foreach (var gameObj in UnityEngine.Object.FindObjectsOfType(typeof(GuardComponent)))
             {
@@ -179,7 +182,7 @@ namespace Oxide.Plugins
 
         private void GenerateMapMarker()
         {
-            BaseEntity marker = GameManager.server?.CreateEntity(MapMarkerPrefab, eventPosition);
+            BaseEntity marker = GameManager.server?.CreateEntity(MarkerPrefab, eventPosition);
             if (marker == null)
             {
                 return;
@@ -201,6 +204,7 @@ namespace Oxide.Plugins
             }
 
             cargoplane.InitDropPosition(eventPosition);
+            cargoplane.Spawn();
             cargoplane.gameObject.AddComponent<CargoPlaneComponent>();
         }
 
@@ -221,10 +225,9 @@ namespace Oxide.Plugins
                     continue;
                 }
 
-                npc.Spawn();
                 npc.displayName = Get(npc.userID);
+                npc.Spawn();
                 npc.gameObject.AddComponent<GuardComponent>();
-                //npc.gameObject.AddComponent<ParachuteComponent>();
             }
         }
 
@@ -327,7 +330,7 @@ namespace Oxide.Plugins
         public string GridReference(Vector3 position) // Credit: Jake_Rich
         {
             Vector2 roundedPos = new Vector2(World.Size / 2 + position.x, World.Size / 2 - position.z);
-            string grid = $"{NumberToLetter(Mathf.FloorToInt(roundedPos.x / 150))}{Mathf.FloorToInt(roundedPos.y / 150)}";
+            string grid = $"{NumberToLetter(Mathf.FloorToInt(roundedPos.x / 145))}{Mathf.FloorToInt(roundedPos.y / 145)}";
             return grid;
         }
 
@@ -365,7 +368,6 @@ namespace Oxide.Plugins
                  }
 
                  cargoplane.dropped = true;
-                 cargoplane.Spawn();
             }
 
             void Update()
@@ -443,44 +445,43 @@ namespace Oxide.Plugins
                 npc.Destination                = npc.transform.position;
                 
                 spawnPoint = npc.transform.position;
-                roamRadius = UnityEngine.Random.Range(10, ins.config.NPCRoamRadius);
+                roamRadius = UnityEngine.Random.Range(0, ins.config.NPCRoamRadius);
             } 
 
             void Update()
             {
-                if (npc == null || !npc.GetNavAgent.isOnNavMesh)
+                if ((npc.GetFact(NPCPlayerApex.Facts.IsAggro)) == 0 && npc.GetNavAgent.isOnNavMesh)
                 {
-                    return;
-                }
+                    var distance = Vector3.Distance(npc.transform.position, spawnPoint);
+                    if (!goingHome && distance > roamRadius)
+                    {
+                        goingHome = true;
+                    }
 
-                var distance = Vector3.Distance(npc.transform.position, spawnPoint);
-                if (!goingHome && distance > roamRadius)
-                {
-                    goingHome = true;
-                }
-
-                if (goingHome && distance > roamRadius)
-                {
-                    npc.CurrentBehaviour = BaseNpc.Behaviour.Wander;
-                    npc.SetFact(NPCPlayerApex.Facts.Speed, (byte)NPCPlayerApex.SpeedEnum.Walk, true, true);
-                    npc.TargetSpeed = ins.config.NPCTargetSpeed;
-                    npc.GetNavAgent.SetDestination(spawnPoint);
-                    npc.Destination = spawnPoint;
-                }
-                else 
-                {
-                    goingHome = false;
+                    if (goingHome && distance > roamRadius)
+                    {
+                        npc.CurrentBehaviour = BaseNpc.Behaviour.Wander;
+                        npc.SetFact(NPCPlayerApex.Facts.Speed, (byte)NPCPlayerApex.SpeedEnum.Walk, true, true);
+                        npc.TargetSpeed = ins.config.NPCTargetSpeed;
+                        npc.GetNavAgent.SetDestination(spawnPoint);
+                        npc.Destination = spawnPoint;
+                    }
+                    else 
+                    {
+                        goingHome = false;
+                    }
                 }
             }
 
             void OnCollisionEnter(Collision col)
             {
-                npc.syncPosition = true;
+                //
             }
 
             void OnDestroy()
             {
-                 npc?.Kill();
+                 if (npc != null && !npc.IsDestroyed)
+                     npc.Kill();
             }
         }
 
@@ -497,8 +498,7 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                string chutePrefab = "assets/prefabs/misc/parachute/parachute.prefab";
-                parachute = GameManager.server?.CreateEntity(chutePrefab, entity.transform.position) as BaseEntity;
+                parachute = GameManager.server?.CreateEntity(ChutePrefab, entity.transform.position) as BaseEntity;
                 if (parachute == null)
                 {
                     return;
@@ -516,7 +516,8 @@ namespace Oxide.Plugins
 
             void OnCollisionEnter(Collision col)
             {
-                parachute?.Kill();
+                if (parachute != null && !parachute.IsDestroyed)
+                    parachute.Kill();
 
                 OnDestroy();
             }
@@ -529,42 +530,6 @@ namespace Oxide.Plugins
         #endregion
 
         #region Chat Commands
-        [ChatCommand("guarded-test")]
-        private void GuardedTestCommand(BasePlayer player, string command, string[] args)
-        {
-            if (player == null)
-            {
-                return;
-            }
-
-            var spawnPos = player.transform.position;
-            spawnPos.y   = spawnPos.y + 50;
-
-            Scientist scientist = GameManager.server.CreateEntity("assets/prefabs/npc/scientist/scientist.prefab", spawnPos) as Scientist;
-            scientist.Spawn();
-            scientist.syncPosition                         = false;
-            //scientist.GetComponent<Rigidbody>().drag       = 2f;
-            //scientist.GetComponent<Rigidbody>().useGravity = true;
-
-            PrintWarning("AI Spawned");
-
-            BaseEntity chute = GameManager.server.CreateEntity("assets/prefabs/misc/parachute/parachute.prefab", scientist.transform.position);
-            chute.Spawn();
-            chute.SetParent(scientist);
-            chute.transform.localPosition = new Vector3(0, 1f, 0);
-
-            timer.Once(10f, () => { chute?.KillMessage(); });
-
-            timer.Once(5, () =>
-            {
-                //scientist.transform.position = new Vector3(spawnPos.x, 50, spawnPos.z);
-                scientist.SendNetworkUpdate();
-                PrintWarning("AI Moved");
-
-                scientist.gameObject.AddComponent<ParachuteComponent>();
-            });
-        }
-
         [ChatCommand("guarded")]
         private void GuardedCommand(BasePlayer player, string command, string[] args)
         {
