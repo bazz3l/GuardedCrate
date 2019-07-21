@@ -208,29 +208,29 @@ namespace Oxide.Plugins
         {
             for (int i = 0; i < config.NPCCount; i++)
             {
-                Vector3 newPosition = eventPosition + (UnityEngine.Random.onUnitSphere * config.NPCRadius);
+                Vector3 spawnPos = eventPosition + (UnityEngine.Random.onUnitSphere * config.NPCRadius);
 
-                if (!IsValidPosition(ref newPosition))
+                if (!IsValidPosition(ref spawnPos))
                 {
                     continue;
                 }
 
-                Scientist npc = GameManager.server?.CreateEntity(ScientistPrefab, newPosition) as Scientist;
+                Scientist npc = GameManager.server?.CreateEntity(ScientistPrefab, spawnPos) as Scientist;
                 if (npc == null)
                 {
                     continue;
                 }
 
                 npc.Spawn();
+                npc.displayName = Get(npc.userID);
                 npc.gameObject.AddComponent<GuardComponent>();
+                //npc.gameObject.AddComponent<ParachuteComponent>();
             }
         }
 
         private void SpawnHackableLockedCrate()
         {
-            Vector3 newPos = eventPosition + new Vector3(0.0f, 250.0f, 0.0f);
-
-            HackableLockedCrate crate = GameManager.server?.CreateEntity(CratePrefab, newPos) as HackableLockedCrate;
+            HackableLockedCrate crate = GameManager.server?.CreateEntity(CratePrefab, eventPosition + new Vector3(0, 250f, 0)) as HackableLockedCrate;
             if (crate == null)
             {
                 return;
@@ -264,6 +264,8 @@ namespace Oxide.Plugins
         #endregion
 
         #region Helpers
+        private static string Get(ulong v) => Facepunch.RandomUsernames.Get((int)(v % 2147483647uL));
+
         private Vector3? GetSpawnPos()
         {
             for (int i = 0; i < MaxSpawnTries; i++)
@@ -322,10 +324,10 @@ namespace Oxide.Plugins
             return true;
         }
 
-        public string GridReference(Vector3 position)
+        public string GridReference(Vector3 position) // Credit: Jake_Rich
         {
             Vector2 roundedPos = new Vector2(World.Size / 2 + position.x, World.Size / 2 - position.z);
-            string grid = $"{NumberToLetter(Mathf.FloorToInt(roundedPos.x / 145))}{Mathf.FloorToInt(roundedPos.y / 145)}";
+            string grid = $"{NumberToLetter(Mathf.FloorToInt(roundedPos.x / 150))}{Mathf.FloorToInt(roundedPos.y / 150)}";
             return grid;
         }
 
@@ -473,6 +475,7 @@ namespace Oxide.Plugins
 
             void OnCollisionEnter(Collision col)
             {
+                npc.syncPosition = true;
             }
 
             void OnDestroy()
@@ -526,6 +529,42 @@ namespace Oxide.Plugins
         #endregion
 
         #region Chat Commands
+        [ChatCommand("guarded-test")]
+        private void GuardedTestCommand(BasePlayer player, string command, string[] args)
+        {
+            if (player == null)
+            {
+                return;
+            }
+
+            var spawnPos = player.transform.position;
+            spawnPos.y   = spawnPos.y + 50;
+
+            Scientist scientist = GameManager.server.CreateEntity("assets/prefabs/npc/scientist/scientist.prefab", spawnPos) as Scientist;
+            scientist.Spawn();
+            scientist.syncPosition                         = false;
+            //scientist.GetComponent<Rigidbody>().drag       = 2f;
+            //scientist.GetComponent<Rigidbody>().useGravity = true;
+
+            PrintWarning("AI Spawned");
+
+            BaseEntity chute = GameManager.server.CreateEntity("assets/prefabs/misc/parachute/parachute.prefab", scientist.transform.position);
+            chute.Spawn();
+            chute.SetParent(scientist);
+            chute.transform.localPosition = new Vector3(0, 1f, 0);
+
+            timer.Once(10f, () => { chute?.KillMessage(); });
+
+            timer.Once(5, () =>
+            {
+                //scientist.transform.position = new Vector3(spawnPos.x, 50, spawnPos.z);
+                scientist.SendNetworkUpdate();
+                PrintWarning("AI Moved");
+
+                scientist.gameObject.AddComponent<ParachuteComponent>();
+            });
+        }
+
         [ChatCommand("guarded")]
         private void GuardedCommand(BasePlayer player, string command, string[] args)
         {
