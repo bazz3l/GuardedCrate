@@ -78,7 +78,8 @@ namespace Oxide.Plugins
         #region Data
         private StoredData storedData;
 
-        class StoredData {
+        class StoredData 
+        {
             public bool EventActive = false;
             public uint ContainerID = 0;
             public Dictionary<ulong, int> Players = new Dictionary<ulong, int>();
@@ -119,7 +120,7 @@ namespace Oxide.Plugins
 
         private void OnLootEntity(BasePlayer player, StorageContainer entity)
         {
-            if (entity == null || entity.net.ID != storedData.ContainerID || !storedData.EventActive)
+            if (entity == null || entity.net == null || entity.net.ID != storedData.ContainerID || !storedData.EventActive)
             {
                 return;
             }
@@ -155,13 +156,13 @@ namespace Oxide.Plugins
 
         private void CleanEvent()
         {
+            foreach (var guardObj in UnityEngine.Object.FindObjectsOfType(typeof(GuardComponent)))
+            {
+                UnityEngine.Object.Destroy(guardObj);
+            }
+
             if (mapMarker != null && !mapMarker.IsDestroyed)
                 mapMarker.Kill();
-
-            foreach (var gameObj in UnityEngine.Object.FindObjectsOfType(typeof(GuardComponent)))
-            {
-                UnityEngine.Object.Destroy(gameObj);
-            }
 
             storedData.EventActive = false;
             storedData.ContainerID = 0;
@@ -172,7 +173,6 @@ namespace Oxide.Plugins
         {
             SpawnCargoPlane();
             SpawnGuards();
-            GenerateMapMarker();
 
             storedData.EventActive = true;
             SaveData();
@@ -219,7 +219,7 @@ namespace Oxide.Plugins
                     continue;
                 }
 
-                Scientist npc = GameManager.server?.CreateEntity(ScientistPrefab, spawnPos) as Scientist;
+                Scientist npc = GameManager.server.CreateEntity(ScientistPrefab, spawnPos) as Scientist;
                 if (npc == null)
                 {
                     continue;
@@ -404,7 +404,7 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                //crate.StartHacking();
+                crate.StartHacking();
                 
                 spawnPoint = crate.transform.position;
             }
@@ -426,15 +426,19 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                npc.utilityAiComponent.enabled = true;
                 npc.Stats.AggressionRange      = ins.config.NPCAgressionRange;
                 npc.Stats.VisionRange          = ins.config.NPCAgressionRange;
+                npc.Stats.LongRange            = 500f;
+                npc.Stats.DeaggroCooldown      = 1f;
+                npc.Stats.DeaggroChaseTime     = 1f;
                 npc.SpawnPosition              = npc.transform.position;
                 npc.Destination                = npc.transform.position;
-                
+                npc.InitFacts();
+                npc.SendNetworkUpdate();
+
                 spawnPoint = npc.transform.position;
                 roamRadius = UnityEngine.Random.Range(0, ins.config.NPCRoamRadius);
-            } 
+            }
 
             void Update()
             {
@@ -464,7 +468,7 @@ namespace Oxide.Plugins
 
             void OnDestroy()
             {
-                 if (npc != null && !npc.IsDestroyed)
+                if (npc != null && !npc.IsDestroyed)
                     npc.Kill();
             }
         }
@@ -483,7 +487,7 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                parachute = GameManager.server?.CreateEntity(ChutePrefab, entity.transform.position) as BaseEntity;
+                parachute = GameManager.server.CreateEntity(ChutePrefab, entity.transform.position) as BaseEntity;
                 if (parachute == null)
                 {
                     return;
@@ -546,11 +550,11 @@ namespace Oxide.Plugins
 
             Dictionary<string, int> playerStats = new Dictionary<string, int>();
 
-            foreach(var p in storedData.Players)
+            foreach (KeyValuePair<ulong, int> item in storedData.Players)
             {
-                var playerName = covalence.Players?.FindPlayerById(p.Key.ToString())?.Name;
-                if (playerName != null)
-                    playerStats.Add(playerName, p.Value);
+                BasePlayer foundPlayer = BasePlayer.FindByID(item.Key);
+                if (foundPlayer != null)
+                    playerStats.Add(foundPlayer.displayName, item.Value);
             }
 
             var stats = playerStats.OrderByDescending(x => x.Value)
