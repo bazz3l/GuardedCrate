@@ -17,7 +17,7 @@ namespace Oxide.Plugins
         const string CratePrefab     = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
         const string CargoPrefab     = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
         const string ChutePrefab     = "assets/prefabs/misc/parachute/parachute.prefab";
-        const string MarkerPrefab    = "assets/prefabs/deployable/vendingmachine/vending_mapmarker.prefab";
+        const string MarkerPrefab    = "assets/prefabs/tools/map/genericradiusmarker.prefab";
         const string ScientistPrefab = "assets/prefabs/npc/scientist/scientist.prefab";
 
         const float HeightToRaycast           = 250f;
@@ -29,7 +29,7 @@ namespace Oxide.Plugins
         const float RadiusFromCupboardZone    = 3.0f;
 
         public static GuardedCrate ins;
-        private BaseEntity mapMarker;
+        private MapMarkerGenericRadius mapMarker;
         private Vector3 eventPosition; 
         #endregion
 
@@ -173,8 +173,10 @@ namespace Oxide.Plugins
         {
             SpawnCargoPlane();
             SpawnGuards();
+            GenerateMapMarker();
 
             storedData.EventActive = true;
+            
             SaveData();
 
             PrintToChat(Lang("EventStart", null, GridReference(eventPosition)));
@@ -182,15 +184,18 @@ namespace Oxide.Plugins
 
         private void GenerateMapMarker()
         {
-            BaseEntity marker = GameManager.server.CreateEntity(MarkerPrefab, eventPosition);
+            MapMarkerGenericRadius marker = GameManager.server.CreateEntity(MarkerPrefab, eventPosition) as MapMarkerGenericRadius;
             if (marker == null)
             {
                 return;
             }
 
-            VendingMachineMapMarker customMarker = marker.GetComponent<VendingMachineMapMarker>();
-            customMarker.markerShopName = "Guarded Crate Event";
+            marker.alpha  = 0.8f;
+            marker.color1 = new Color(0.0f, 0.0f, 0.0f);
+            marker.color2 = new Color(1.0f, 1.0f, 1.0f);
+            marker.radius = 0.6f;
             marker.Spawn();
+            marker.SendUpdate();
 
             mapMarker = marker;
         }
