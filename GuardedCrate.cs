@@ -55,11 +55,11 @@ namespace Oxide.Plugins
         {
             return new PluginConfig
             {
-                NPCCount          = 15,
-                NPCRadius         = 20,
-                NPCRoamRadius     = 20,
+                NPCCount          = 45,
+                NPCRadius         = 50,
+                NPCRoamRadius     = 120,
                 NPCTargetSpeed    = 2.5f,
-                NPCAgressionRange = 300f,
+                NPCAgressionRange = 500f,
                 LootItems         = new Dictionary<string, int> {
                    { "rifle.ak", 1 },
                    { "rifle.bold", 1 },
@@ -182,7 +182,7 @@ namespace Oxide.Plugins
 
         private void GenerateMapMarker()
         {
-            BaseEntity marker = GameManager.server?.CreateEntity(MarkerPrefab, eventPosition);
+            BaseEntity marker = GameManager.server.CreateEntity(MarkerPrefab, eventPosition);
             if (marker == null)
             {
                 return;
@@ -197,7 +197,7 @@ namespace Oxide.Plugins
 
         private void SpawnCargoPlane()
         {
-            CargoPlane cargoplane = GameManager.server?.CreateEntity(CargoPrefab) as CargoPlane;
+            CargoPlane cargoplane = GameManager.server.CreateEntity(CargoPrefab) as CargoPlane;
             if (cargoplane == null)
             {
                 return;
@@ -225,7 +225,7 @@ namespace Oxide.Plugins
                     continue;
                 }
 
-                npc.displayName = Get(npc.userID);
+                npc.displayName = GreateNPCName(npc.userID);
                 npc.Spawn();
                 npc.gameObject.AddComponent<GuardComponent>();
             }
@@ -233,7 +233,7 @@ namespace Oxide.Plugins
 
         private void SpawnHackableLockedCrate()
         {
-            HackableLockedCrate crate = GameManager.server?.CreateEntity(CratePrefab, eventPosition + new Vector3(0, 250f, 0)) as HackableLockedCrate;
+            HackableLockedCrate crate = GameManager.server.CreateEntity(CratePrefab, eventPosition + new Vector3(0, 250f, 0)) as HackableLockedCrate;
             if (crate == null)
             {
                 return;
@@ -267,7 +267,7 @@ namespace Oxide.Plugins
         #endregion
 
         #region Helpers
-        private static string Get(ulong v) => Facepunch.RandomUsernames.Get((int)(v % 2147483647uL));
+        private static string GreateNPCName(ulong v) => Facepunch.RandomUsernames.Get((int)(v % 2147483647uL));
 
         private Vector3? GetSpawnPos()
         {
@@ -361,13 +361,14 @@ namespace Oxide.Plugins
 
             void Start()
             {
-                 cargoplane = GetComponent<CargoPlane>();
-                 if (cargoplane == null)
-                 {
-                     return;
-                 }
+                cargoplane = GetComponent<CargoPlane>();
+                if (cargoplane == null)
+                {
+                    Destroy(this);
+                    return;
+                }
 
-                 cargoplane.dropped = true;
+                cargoplane.dropped = true;
             }
 
             void Update()
@@ -386,11 +387,6 @@ namespace Oxide.Plugins
                     ins.SpawnHackableLockedCrate();
                 }
             }
-
-            void OnDestroy()
-            {
-                Destroy(this);
-            }
         }
 
         public class HackableLootCrateComponent : FacepunchBehaviour
@@ -401,25 +397,16 @@ namespace Oxide.Plugins
 
             void Start()
             {
-                 crate = GetComponent<HackableLockedCrate>();
-                 if (crate == null)
-                 {
-                     return;
-                 }
+                crate = GetComponent<HackableLockedCrate>();
+                if (crate == null)
+                {
+                    Destroy(this);
+                    return;
+                }
 
-                 crate.StartHacking();
-                 
-                 spawnPoint = crate.transform.position;
-            }
-
-            void OnCollisionEnter(Collision col)
-            {
-                ins.Puts("Guarded crate landed");
-            }
-
-            void OnDestroy()
-            {
-                Destroy(this);
+                //crate.StartHacking();
+                
+                spawnPoint = crate.transform.position;
             }
         }
 
@@ -435,6 +422,7 @@ namespace Oxide.Plugins
                 npc = GetComponent<NPCPlayerApex>();
                 if (npc == null)
                 {
+                    Destroy(this);
                     return;
                 }
 
@@ -452,7 +440,8 @@ namespace Oxide.Plugins
             {
                 if ((npc.GetFact(NPCPlayerApex.Facts.IsAggro)) == 0 && npc.GetNavAgent.isOnNavMesh)
                 {
-                    var distance = Vector3.Distance(npc.transform.position, spawnPoint);
+                    float distance = Vector3.Distance(npc.transform.position, spawnPoint);
+
                     if (!goingHome && distance > roamRadius)
                     {
                         goingHome = true;
@@ -473,15 +462,10 @@ namespace Oxide.Plugins
                 }
             }
 
-            void OnCollisionEnter(Collision col)
-            {
-                //
-            }
-
             void OnDestroy()
             {
                  if (npc != null && !npc.IsDestroyed)
-                     npc.Kill();
+                    npc.Kill();
             }
         }
 
@@ -495,6 +479,7 @@ namespace Oxide.Plugins
                 entity = this.GetComponent<BaseEntity>();
                 if (entity == null)
                 {
+                    Destroy(this);
                     return;
                 }
 
@@ -518,13 +503,6 @@ namespace Oxide.Plugins
             {
                 if (parachute != null && !parachute.IsDestroyed)
                     parachute.Kill();
-
-                OnDestroy();
-            }
-
-            void OnDestroy()
-            {
-                Destroy(this);
             }
         }
         #endregion
