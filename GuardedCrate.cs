@@ -104,6 +104,11 @@ namespace Oxide.Plugins
         #endregion
 
         #region Oxide
+        private void OnServerInitialized()
+        {
+            ins = this;
+        }
+
         private void Init()
         {
             config     = Config.ReadObject<PluginConfig>();
@@ -112,11 +117,6 @@ namespace Oxide.Plugins
         }
 
         private void Unload() => CleanEvent();
-
-        private void OnServerInitialized()
-        {
-            ins = this;
-        }
 
         private void OnLootEntity(BasePlayer player, StorageContainer entity)
         {
@@ -156,7 +156,7 @@ namespace Oxide.Plugins
 
         private void CleanEvent()
         {
-            foreach (var guardObj in UnityEngine.Object.FindObjectsOfType(typeof(GuardComponent)))
+            foreach (GuardComponent guardObj in UnityEngine.Object.FindObjectsOfType(typeof(GuardComponent)))
             {
                 UnityEngine.Object.Destroy(guardObj);
             }
@@ -169,20 +169,20 @@ namespace Oxide.Plugins
             SaveData();
         }
 
-        public void CreateEvent()
+        private void CreateEvent()
         {
             SpawnCargoPlane();
             SpawnGuards();
-            GenerateMapMarker();
+            SpawnMarker();
 
             storedData.EventActive = true;
-            
+
             SaveData();
 
             PrintToChat(Lang("EventStart", null, GridReference(eventPosition)));
         }
 
-        private void GenerateMapMarker()
+        private void SpawnMarker()
         {
             MapMarkerGenericRadius marker = GameManager.server.CreateEntity(MarkerPrefab, eventPosition) as MapMarkerGenericRadius;
             if (marker == null)
@@ -198,19 +198,6 @@ namespace Oxide.Plugins
             marker.SendUpdate();
 
             mapMarker = marker;
-        }
-
-        private void SpawnCargoPlane()
-        {
-            CargoPlane cargoplane = GameManager.server.CreateEntity(CargoPrefab) as CargoPlane;
-            if (cargoplane == null)
-            {
-                return;
-            }
-
-            cargoplane.InitDropPosition(eventPosition);
-            cargoplane.Spawn();
-            cargoplane.gameObject.AddComponent<CargoPlaneComponent>();
         }
 
         private void SpawnGuards()
@@ -230,13 +217,25 @@ namespace Oxide.Plugins
                     continue;
                 }
 
-                npc.displayName = GreateNPCName(npc.userID);
                 npc.Spawn();
                 npc.gameObject.AddComponent<GuardComponent>();
             }
         }
 
-        private void SpawnHackableLockedCrate()
+        private void SpawnCargoPlane()
+        {
+            CargoPlane plane = GameManager.server.CreateEntity(CargoPrefab) as CargoPlane;
+            if (plane == null)
+            {
+                return;
+            }
+
+            plane.InitDropPosition(eventPosition);
+            plane.Spawn();
+            plane.gameObject.AddComponent<CargoPlaneComponent>();
+        }
+
+        private void SpawnHackableCrate()
         {
             HackableLockedCrate crate = GameManager.server.CreateEntity(CratePrefab, eventPosition + new Vector3(0, 250f, 0)) as HackableLockedCrate;
             if (crate == null)
@@ -245,7 +244,7 @@ namespace Oxide.Plugins
             }
 
             crate.Spawn();
-            crate.gameObject.AddComponent<HackableLootCrateComponent>();
+            crate.gameObject.AddComponent<HackableCrateComponent>();
             crate.gameObject.AddComponent<ParachuteComponent>();
             crate.inventory.Clear();
 
@@ -256,24 +255,23 @@ namespace Oxide.Plugins
                 item.Remove(0f);
             }
 
-            foreach (var loot in config.LootItems)
+            foreach (KeyValuePair<string, int> loot in config.LootItems)
             {
                 Item item = ItemManager?.CreateByName(loot.Key, loot.Value);
-                if (item == null)
-                {
-                    continue;
-                }
-
-                item.MoveToContainer(crate.inventory);
+                if (item != null)
+                    item.MoveToContainer(crate.inventory);
             }
 
             storedData.ContainerID = crate.net.ID;
         }
+
+        private void SetupCrateLoot()
+        {
+
+        }
         #endregion
 
         #region Helpers
-        private static string GreateNPCName(ulong v) => Facepunch.RandomUsernames.Get((int)(v % 2147483647uL));
-
         private Vector3? GetSpawnPos()
         {
             for (int i = 0; i < MaxSpawnTries; i++)
@@ -389,12 +387,12 @@ namespace Oxide.Plugins
                 {
                     dropped = true;
 
-                    ins.SpawnHackableLockedCrate();
+                    ins.SpawnHackableCrate();
                 }
             }
         }
 
-        public class HackableLootCrateComponent : FacepunchBehaviour
+        public class HackableCrateComponent : FacepunchBehaviour
         {
             public HackableLockedCrate crate;
             public BaseEntity parachute;
@@ -485,7 +483,7 @@ namespace Oxide.Plugins
 
             void Start()
             {
-                entity = this.GetComponent<BaseEntity>();
+                entity = GetComponent<BaseEntity>();
                 if (entity == null)
                 {
                     Destroy(this);
