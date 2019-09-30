@@ -25,8 +25,8 @@ namespace Oxide.Plugins
 
         public static GuardedCrate ins;
         private Vector3 eventPosition;
-
         private int LayerMasks = LayerMask.GetMask("Terrain", "World");
+
         private List<MonumentInfo> Monuments
         {
             get
@@ -34,6 +34,7 @@ namespace Oxide.Plugins
                 return TerrainMeta.Path.Monuments;
             }
         }
+
         private float HeightToRaycast
         {
             get
@@ -51,7 +52,7 @@ namespace Oxide.Plugins
 
         private PluginConfig config;
 
-        private class PluginConfig
+        class PluginConfig
         {
             public int NPCCount;
             public int NPCRadius;
@@ -97,7 +98,7 @@ namespace Oxide.Plugins
             public Dictionary<ulong, int> Players = new Dictionary<ulong, int>();
             public List<uint> Bots  = new List<uint>();
             public bool EventActive = false;            
-            public uint ContainerID = 0;
+            public uint CrateID     = 0;
             public uint MarkerID    = 0;
         }
 
@@ -127,8 +128,8 @@ namespace Oxide.Plugins
         {
             config     = Config.ReadObject<PluginConfig>();
             storedData = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name);
-            
-            CleanEvent();
+
+            ResetEvent();
         }
 
         private void Unload()
@@ -138,7 +139,7 @@ namespace Oxide.Plugins
 
         private void OnLootEntity(BasePlayer player, StorageContainer entity)
         {
-            if (entity == null || entity.net == null || entity.net.ID != storedData.ContainerID || !storedData.EventActive)
+            if (entity == null || entity.net == null || entity.net.ID != storedData.CrateID || !storedData.EventActive)
             {
                 return;
             }
@@ -183,6 +184,8 @@ namespace Oxide.Plugins
             SaveData();
 
             PrintToChat(Lang("EventStart", null, GridReference(eventPosition)));
+
+            Interface.Oxide.LogError("[Guarded Crate] Event Started.");
         }
 
         private void CleanEvent()
@@ -202,11 +205,27 @@ namespace Oxide.Plugins
             }
 
             storedData.EventActive = false;
-            storedData.ContainerID = 0;
+            storedData.CrateID     = 0;
             storedData.MarkerID    = 0;
             storedData.Bots.Clear();
 
             SaveData();
+
+            Interface.Oxide.LogError("[Guarded Crate] Event ended.");
+        }
+
+        private void ResetEvent()
+        {
+            foreach (HackableLockedCrate crate in GameObject.FindObjectsOfType<HackableLockedCrate>().Where(c => c.net != null && c.net.ID == storedData.CrateID))
+            {
+                if (crate == null || crate.IsDestroyed) continue;
+
+                crate?.Kill();
+            }
+
+            CleanEvent();
+
+            Interface.Oxide.LogError("[Guarded Crate] Event Reset.");
         }
 
         private void SpawnCargoPlane()
@@ -271,7 +290,7 @@ namespace Oxide.Plugins
                 item.MoveToContainer(crate.inventory);
             }
 
-            storedData.ContainerID = crate.net.ID;
+            storedData.CrateID = crate.net.ID;
         }
 
         private void SpawnGuard(Vector3 position, float health = 150f, bool shouldChase = false)
@@ -303,10 +322,8 @@ namespace Oxide.Plugins
             for (int i = 0; i < config.NPCCount; i++)
             {
                 Vector3 position;
-                if (!FindValidSpawn(eventPosition + (UnityEngine.Random.onUnitSphere * config.NPCRadius), 1, out position))
-                {
-                    continue;
-                }
+
+                if (!FindValidSpawn(eventPosition + (UnityEngine.Random.onUnitSphere * config.NPCRadius), 1, out position)) continue;
 
                 SpawnGuard(position, config.NPCHealth, (UnityEngine.Random.Range(0,8) >= 4) ? true : false);
 
@@ -449,6 +466,8 @@ namespace Oxide.Plugins
                 }
 
                 crate.StartHacking();
+
+                SetupLoot();
             }
         }
 
