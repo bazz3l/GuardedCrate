@@ -466,8 +466,6 @@ namespace Oxide.Plugins
                 }
 
                 crate.StartHacking();
-
-                SetupLoot();
             }
         }
 
