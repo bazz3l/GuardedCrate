@@ -11,7 +11,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.0.1")]
+    [Info("Guarded Crate", "Bazz3l", "1.0.0")]
     [Description("Eliminate the scientits to gain high value loot")]
     class GuardedCrate : RustPlugin
     {
@@ -24,10 +24,9 @@ namespace Oxide.Plugins
         public const int MaxSpawnTries      = 250;
 
         public static GuardedCrate ins;
-        private MapMarkerGenericRadius mapMarker;
         private Vector3 eventPosition;
 
-        private readonly int LayerMasks = LayerMask.GetMask("Terrain", "World");
+        private int LayerMasks = LayerMask.GetMask("Terrain", "World");
         private List<MonumentInfo> Monuments
         {
             get
@@ -45,12 +44,12 @@ namespace Oxide.Plugins
         #endregion
 
         #region Config
-        private PluginConfig config;
-
         protected override void LoadDefaultConfig()
         {
             Config.WriteObject(GetDefaultConfig(), true);
         }
+
+        private PluginConfig config;
 
         private class PluginConfig
         {
@@ -96,14 +95,16 @@ namespace Oxide.Plugins
         class StoredData 
         {
             public Dictionary<ulong, int> Players = new Dictionary<ulong, int>();
-            public bool EventActive = false;
+            public List<uint> Bots  = new List<uint>();
+            public bool EventActive = false;            
             public uint ContainerID = 0;
+            public uint MarkerID    = 0;
         }
 
         private void SaveData() => Interface.Oxide.DataFileSystem.WriteObject(Name, storedData, true);
         #endregion
 
-        #region Lang
+        #region Oxide
         protected override void LoadDefaultMessages()
         {
             lang.RegisterMessages(new Dictionary<string, string>
@@ -116,21 +117,23 @@ namespace Oxide.Plugins
                ["StatsPlayerNone"] = "You have not completed any events"
             }, this);
         }
-        #endregion
-
-        #region Oxide
-        private void Init()
-        {
-            config     = Config.ReadObject<PluginConfig>();
-            storedData = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name);
-            SaveData();
-        }
-
-        private void Unload() => CleanEvent();
 
         private void OnServerInitialized()
         {
             ins = this;
+        }
+
+        private void Init()
+        {
+            config     = Config.ReadObject<PluginConfig>();
+            storedData = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name);
+            
+            CleanEvent();
+        }
+
+        private void Unload()
+        {
+            CleanEvent();
         }
 
         private void OnLootEntity(BasePlayer player, StorageContainer entity)
@@ -184,19 +187,39 @@ namespace Oxide.Plugins
 
         private void CleanEvent()
         {
-            foreach (GuardComponent guardObj in UnityEngine.Object.FindObjectsOfType(typeof(GuardComponent)))
+            foreach (MapMarkerGenericRadius marker in GameObject.FindObjectsOfType<MapMarkerGenericRadius>().Where(m => m.net != null && m.net.ID == storedData.MarkerID))
             {
-                UnityEngine.Object.Destroy(guardObj);
+                if (marker == null || marker.IsDestroyed) continue;
+
+                marker?.Kill();
             }
 
-            if (mapMarker != null && !mapMarker.IsDestroyed)
-                mapMarker.Kill();
+            foreach (NPCPlayerApex npc in GameObject.FindObjectsOfType<NPCPlayerApex>().Where(b => b.net != null && storedData.Bots.Contains(b.net.ID)))
+            {
+                if (npc == null || npc.IsDestroyed) continue;
+
+                npc?.Kill();
+            }
 
             storedData.EventActive = false;
             storedData.ContainerID = 0;
-            SaveData();
+            storedData.MarkerID    = 0;
+            storedData.Bots.Clear();
 
-            PrintToChat(Lang("EventEnded", null));
+            SaveData();
+        }
+
+        private void SpawnCargoPlane()
+        {
+            CargoPlane cargoplane = GameManager.server.CreateEntity(CargoPrefab) as CargoPlane;
+            if (cargoplane == null)
+            {
+                return;
+            }
+
+            cargoplane.InitDropPosition(eventPosition);
+            cargoplane.Spawn();
+            cargoplane.gameObject.AddComponent<CargoPlaneComponent>();
         }
 
         private void SpawnMarker()
@@ -214,20 +237,7 @@ namespace Oxide.Plugins
             marker.Spawn();
             marker.SendUpdate();
 
-            mapMarker = marker;
-        }
-
-        private void SpawnCargoPlane()
-        {
-            CargoPlane cargoplane = GameManager.server.CreateEntity(CargoPrefab) as CargoPlane;
-            if (cargoplane == null)
-            {
-                return;
-            }
-
-            cargoplane.InitDropPosition(eventPosition);
-            cargoplane.Spawn();
-            cargoplane.gameObject.AddComponent<CargoPlaneComponent>();
+            storedData.MarkerID = marker.net.ID;
         }
 
         private void SpawnHackableCrate()
@@ -239,7 +249,7 @@ namespace Oxide.Plugins
             }
 
             crate.Spawn();
-            crate.gameObject.AddComponent<HackableLootCrateComponent>();
+            crate.gameObject.AddComponent<HackableCrateComponent>();
             crate.gameObject.AddComponent<ParachuteComponent>();
             crate.inventory.Clear();
 
@@ -264,26 +274,6 @@ namespace Oxide.Plugins
             storedData.ContainerID = crate.net.ID;
         }
 
-        IEnumerator SpawnGuards()
-        {
-            yield return new WaitForSeconds(0.5f);
-
-            for (int i = 0; i < config.NPCCount; i++)
-            {
-                Vector3 position;
-                if (!FindValidSpawn(eventPosition + (UnityEngine.Random.onUnitSphere * config.NPCRadius), 1, out position))
-                {
-                    continue;
-                }
-
-                SpawnGuard(position, 200f, (UnityEngine.Random.Range(0,8) >= 4) ? true : false);
-
-                yield return new WaitForSeconds(0.5f);
-            }
-
-            yield break;
-        }
-
         private void SpawnGuard(Vector3 position, float health = 150f, bool shouldChase = false)
         {
             NPCPlayerApex npc = GameManager.server.CreateEntity(ScientistPrefab, position) as NPCPlayerApex;
@@ -297,6 +287,33 @@ namespace Oxide.Plugins
             npc._maxHealth  = npc.health;
             npc.Spawn();
             npc.gameObject.AddComponent<GuardComponent>().shouldChase = shouldChase;
+
+            if (!storedData.Bots.Contains(npc.net.ID))
+            {
+                storedData.Bots.Add(npc.net.ID);
+
+                SaveData();
+            }
+        }
+
+        IEnumerator SpawnGuards()
+        {
+            yield return new WaitForSeconds(0.5f);
+
+            for (int i = 0; i < config.NPCCount; i++)
+            {
+                Vector3 position;
+                if (!FindValidSpawn(eventPosition + (UnityEngine.Random.onUnitSphere * config.NPCRadius), 1, out position))
+                {
+                    continue;
+                }
+
+                SpawnGuard(position, config.NPCHealth, (UnityEngine.Random.Range(0,8) >= 4) ? true : false);
+
+                yield return new WaitForSeconds(0.5f);
+            }
+
+            yield break;
         }
         #endregion
 
@@ -406,11 +423,6 @@ namespace Oxide.Plugins
 
             void Update()
             {
-                if (!cargoplane.isServer)
-                {
-                    return;
-                }
-
                 cargoplane.secondsTaken += Time.deltaTime;
 
                 if (!dropped && (double) Mathf.InverseLerp(0.0f, cargoplane.secondsToTake, cargoplane.secondsTaken) >= 0.5)
@@ -422,7 +434,7 @@ namespace Oxide.Plugins
             }
         }
 
-        public class HackableLootCrateComponent : MonoBehaviour
+        public class HackableCrateComponent : MonoBehaviour
         {
             public HackableLockedCrate crate;
 
@@ -483,12 +495,6 @@ namespace Oxide.Plugins
                 }
 
                 ShouldRelocate();
-            }
-
-            void OnDestroy()
-            {
-                if (npc != null && !npc.IsDestroyed)
-                    npc.Kill();
             }
 
             void ShouldRelocate()
