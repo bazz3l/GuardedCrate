@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections;
 using System.Linq;
 using Rust;
 using UnityEngine;
@@ -10,7 +11,7 @@ using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.0.0")]
+    [Info("Guarded Crate", "Bazz3l", "1.0.1")]
     [Description("Eliminate the scientits to gain high value loot")]
     class GuardedCrate : RustPlugin
     {
@@ -20,14 +21,7 @@ namespace Oxide.Plugins
         public const string ChutePrefab     = "assets/prefabs/misc/parachute/parachute.prefab";
         public const string MarkerPrefab    = "assets/prefabs/tools/map/genericradiusmarker.prefab";
         public const string ScientistPrefab = "assets/prefabs/npc/scientist/scientist.prefab";
-
-        public const float HeightToRaycast           = 250f;
-        public const float RaycastDistance           = 500f;
-        public const float PlayerHeight              = 1.3f;
-        public const float DefaultCupboardZoneRadius = 3.0f;
-        public const int MaxSpawnTries               = 250;
-        public const float RadiusFromRT              = 3.0f;
-        public const float RadiusFromCupboardZone    = 3.0f;
+        public const int MaxSpawnTries      = 250;
 
         public static GuardedCrate ins;
         private MapMarkerGenericRadius mapMarker;
@@ -39,6 +33,13 @@ namespace Oxide.Plugins
             get
             {
                 return TerrainMeta.Path.Monuments;
+            }
+        }
+        private float HeightToRaycast
+        {
+            get
+            {
+                return TerrainMeta.HighestPoint.y + 250f;
             }
         }
         #endregion
@@ -55,6 +56,7 @@ namespace Oxide.Plugins
         {
             public int NPCCount;
             public int NPCRadius;
+            public float NPCHealth;
             public int NPCRoamRadius;
             public float NPCTargetSpeed;
             public float NPCVisionRange;
@@ -66,12 +68,13 @@ namespace Oxide.Plugins
         {
             return new PluginConfig
             {
-                NPCCount          = 50,
-                NPCRadius         = 30,
-                NPCRoamRadius     = 250,
-                NPCTargetSpeed    = 2.5f,
-                NPCVisionRange    = 250f,
-                NPCAgressionRange = 300f,
+                NPCCount          = 40,
+                NPCRadius         = 20,
+                NPCHealth         = 200f,
+                NPCRoamRadius     = 100,
+                NPCTargetSpeed    = 0.5f,
+                NPCVisionRange    = 100f,
+                NPCAgressionRange = 500f,
                 LootItems         = new Dictionary<string, int> {
                    { "rifle.ak", 1 },
                    { "rifle.bold", 1 },
@@ -92,9 +95,9 @@ namespace Oxide.Plugins
 
         class StoredData 
         {
+            public Dictionary<ulong, int> Players = new Dictionary<ulong, int>();
             public bool EventActive = false;
             public uint ContainerID = 0;
-            public Dictionary<ulong, int> Players = new Dictionary<ulong, int>();
         }
 
         private void SaveData() => Interface.Oxide.DataFileSystem.WriteObject(Name, storedData, true);
@@ -166,6 +169,19 @@ namespace Oxide.Plugins
             CreateEvent();
         }
 
+        public void CreateEvent()
+        {
+            SpawnCargoPlane();
+            SpawnMarker();
+            SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnGuards());
+
+            storedData.EventActive = true;
+
+            SaveData();
+
+            PrintToChat(Lang("EventStart", null, GridReference(eventPosition)));
+        }
+
         private void CleanEvent()
         {
             foreach (GuardComponent guardObj in UnityEngine.Object.FindObjectsOfType(typeof(GuardComponent)))
@@ -181,17 +197,6 @@ namespace Oxide.Plugins
             SaveData();
 
             PrintToChat(Lang("EventEnded", null));
-        }
-
-        public void CreateEvent()
-        {
-            SpawnCargoPlane();
-            SpawnGuards();
-            SpawnMarker();
-            storedData.EventActive = true;
-            SaveData();
-
-            PrintToChat(Lang("EventStart", null, GridReference(eventPosition)));
         }
 
         private void SpawnMarker()
@@ -225,29 +230,6 @@ namespace Oxide.Plugins
             cargoplane.gameObject.AddComponent<CargoPlaneComponent>();
         }
 
-        private void SpawnGuards()
-        {
-            for (int i = 0; i < config.NPCCount; i++)
-            {
-                Vector3 position = eventPosition + (UnityEngine.Random.onUnitSphere * config.NPCRadius);
-                Vector3 point;
-                if (!FindValidSpawn(position, 1, out point))
-                {
-                    continue;
-                }
-
-                Scientist npc = GameManager.server.CreateEntity(ScientistPrefab, point) as Scientist;
-                if (npc == null)
-                {
-                    continue;
-                }
-
-                npc.displayName = GreateNPCName(npc.userID);
-                npc.Spawn();
-                npc.gameObject.AddComponent<GuardComponent>().shouldChase = (UnityEngine.Random.Range(0,8) >= 4) ? true : false;
-            }
-        }
-
         private void SpawnHackableCrate()
         {
             HackableLockedCrate crate = GameManager.server.CreateEntity(CratePrefab, eventPosition + new Vector3(0, 250f, 0)) as HackableLockedCrate;
@@ -270,7 +252,7 @@ namespace Oxide.Plugins
 
             foreach (var loot in config.LootItems)
             {
-                Item item = ItemManager?.CreateByName(loot.Key, loot.Value);
+                Item item = ItemManager.CreateByName(loot.Key, loot.Value);
                 if (item == null)
                 {
                     continue;
@@ -281,61 +263,47 @@ namespace Oxide.Plugins
 
             storedData.ContainerID = crate.net.ID;
         }
+
+        IEnumerator SpawnGuards()
+        {
+            yield return new WaitForSeconds(0.5f);
+
+            for (int i = 0; i < config.NPCCount; i++)
+            {
+                Vector3 position;
+                if (!FindValidSpawn(eventPosition + (UnityEngine.Random.onUnitSphere * config.NPCRadius), 1, out position))
+                {
+                    continue;
+                }
+
+                SpawnGuard(position, 200f, (UnityEngine.Random.Range(0,8) >= 4) ? true : false);
+
+                yield return new WaitForSeconds(0.5f);
+            }
+
+            yield break;
+        }
+
+        private void SpawnGuard(Vector3 position, float health = 150f, bool shouldChase = false)
+        {
+            NPCPlayerApex npc = GameManager.server.CreateEntity(ScientistPrefab, position) as NPCPlayerApex;
+            if (npc == null)
+            {
+                return;
+            }
+
+            npc.displayName = CreateName(npc.userID);
+            npc._health     = health;
+            npc._maxHealth  = npc.health;
+            npc.Spawn();
+            npc.gameObject.AddComponent<GuardComponent>().shouldChase = shouldChase;
+        }
         #endregion
 
         #region Helpers
-        private static string GreateNPCName(ulong v) => Facepunch.RandomUsernames.Get((int)(v % 2147483647uL));
+        private string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
 
-        private Vector3? GetSpawnPos()
-        {
-            for (int i = 0; i < MaxSpawnTries; i++)
-            {
-                Vector3 randomPos = new Vector3(
-                    UnityEngine.Random.Range(-TerrainMeta.Size.x / 2, TerrainMeta.Size.x / 2),
-                    HeightToRaycast,
-                    UnityEngine.Random.Range(-TerrainMeta.Size.z / 2, TerrainMeta.Size.z / 2)
-                );
-
-                Vector3 point;
-                if (FindValidSpawn(randomPos, 1, out point))
-                {
-                    return point;
-                }
-            }
-
-            return null;
-        }
-
-        private bool FindValidSpawn(Vector3 center, float range, out Vector3 result)
-        {
-            for (int i = 0; i < 30; i++)
-            {
-                Vector3 position = center + UnityEngine.Random.insideUnitSphere * range;
-
-                RaycastHit hit;
-                if (Physics.Raycast(new Vector3(position.x, position.y + 200f, position.z), Vector3.down, out hit, Mathf.Infinity, LayerMasks))
-                {
-                    Vector3 pos = hit.point;
-                    foreach (MonumentInfo mon in Monuments)
-                    {
-                        if (mon.Bounds.Contains(pos))
-                        {
-                            result = Vector3.zero;
-                            return false;
-                        }
-                    }
-
-                    if (!WaterLevel.Test(pos))
-                    {
-                        result = pos;
-                        return true;
-                    }
-                }
-            }
-
-            result = Vector3.zero;
-            return false;
-        }
+        private string CreateName(ulong v) => Facepunch.RandomUsernames.Get((int)(v % 2147483647uL));        
 
         public string GridReference(Vector3 position) // Credit: Jake_Rich
         {
@@ -360,7 +328,62 @@ namespace Oxide.Plugins
             return text + System.Convert.ToChar(65 + num3).ToString();
         }
 
-        private string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
+        private Vector3? GetSpawnPos()
+        {
+            for (int i = 0; i < MaxSpawnTries; i++)
+            {
+                float posX = UnityEngine.Random.Range(-TerrainMeta.Size.x / 2, TerrainMeta.Size.x / 2);
+                float posZ = UnityEngine.Random.Range(-TerrainMeta.Size.z / 2, TerrainMeta.Size.z / 2);
+                Vector3 randomPos = new Vector3(posX, HeightToRaycast, posZ);
+
+                Vector3 point;
+
+                if (FindValidSpawn(randomPos, 1, out point))
+                {
+                    return point;
+                }
+            }
+
+            return null;
+        }
+
+        private bool FindValidSpawn(Vector3 center, float range, out Vector3 result)
+        {
+            for (int i = 0; i < 50; i++)
+            {
+                Vector3 position = center + UnityEngine.Random.insideUnitSphere * range;
+
+                RaycastHit hit;
+                if (Physics.Raycast(new Vector3(position.x, position.y + 200f, position.z), Vector3.down, out hit, Mathf.Infinity, LayerMasks))
+                {
+                    Vector3 pos = hit.point;
+
+                    if (!IsMonument(pos) && !WaterLevel.Test(pos))
+                    {
+                        result = pos;
+
+                        return true;
+                    }
+                }
+            }
+
+            result = Vector3.zero;
+
+            return false;
+        }
+
+        private bool IsMonument(Vector3 position)
+        {
+            foreach (MonumentInfo mon in Monuments)
+            {
+                if (mon.Bounds.Contains(position)) 
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
         #endregion
 
         #region Scripts
@@ -389,8 +412,8 @@ namespace Oxide.Plugins
                 }
 
                 cargoplane.secondsTaken += Time.deltaTime;
-                float t = Mathf.InverseLerp(0.0f, cargoplane.secondsToTake, cargoplane.secondsTaken);
-                if (!dropped && (double) t >= 0.5)
+
+                if (!dropped && (double) Mathf.InverseLerp(0.0f, cargoplane.secondsToTake, cargoplane.secondsTaken) >= 0.5)
                 {
                     dropped = true;
 
@@ -399,11 +422,9 @@ namespace Oxide.Plugins
             }
         }
 
-        public class HackableLootCrateComponent : FacepunchBehaviour
+        public class HackableLootCrateComponent : MonoBehaviour
         {
             public HackableLockedCrate crate;
-            public BaseEntity parachute;
-            public Vector3 spawnPoint;
 
             void Start()
             {
@@ -411,12 +432,11 @@ namespace Oxide.Plugins
                 if (crate == null)
                 {
                     Destroy(this);
+
                     return;
                 }
 
                 crate.StartHacking();
-                
-                spawnPoint = crate.transform.position;
             }
         }
 
@@ -439,75 +459,59 @@ namespace Oxide.Plugins
 
                 npc.Stats.AggressionRange      = ins.config.NPCAgressionRange;
                 npc.Stats.VisionRange          = ins.config.NPCVisionRange;
-                npc.Stats.LongRange            = 500f;
+                npc.Stats.LongRange            = 300f;
                 npc.Stats.DeaggroCooldown      = 120f;
-                npc.Stats.Hostility            = 1f;
-                npc.Stats.Defensiveness        = 1f;
                 npc.SpawnPosition              = npc.transform.position;
                 npc.Destination                = npc.transform.position;
                 npc.InitFacts();
                 npc.SendNetworkUpdate();
 
                 spawnPoint = npc.transform.position;
-                roamRadius = shouldChase ? UnityEngine.Random.Range(0,80) : UnityEngine.Random.Range(0,40);
+                roamRadius = shouldChase ? UnityEngine.Random.Range(0,100) : UnityEngine.Random.Range(0,50);
             }
 
             void Update()
             {
-                float distance = Vector3.Distance(npc.transform.position, spawnPoint);
-
-                if (shouldChase && npc.GetNavAgent.isOnNavMesh)
+                if (!npc.GetNavAgent.isOnNavMesh)
                 {
-                    if ((npc.GetFact(NPCPlayerApex.Facts.IsAggro)) == 1)
-                    {
-                        return;
-                    }
-
-                    if (!goingHome && distance >= roamRadius)
-                    {
-                        goingHome = true;
-                    }
-
-                    if (goingHome && distance >= roamRadius)
-                    {
-                        npc.CurrentBehaviour = BaseNpc.Behaviour.Wander;
-                        npc.SetFact(NPCPlayerApex.Facts.Speed, (byte)NPCPlayerApex.SpeedEnum.Walk, true, true);
-                        npc.TargetSpeed = ins.config.NPCTargetSpeed;
-                        npc.GetNavAgent.SetDestination(spawnPoint);
-                        npc.Destination = spawnPoint;
-                    }
-                    else
-                    {
-                        goingHome = false;
-                    }
+                    return;
                 }
 
-                if (!shouldChase && npc.GetNavAgent.isOnNavMesh)
+                if ((npc.GetFact(NPCPlayerApex.Facts.IsAggro)) == 1 && shouldChase)
                 {
-                    if (!goingHome && distance >= roamRadius)
-                    {
-                        goingHome = true;
-                    }
-
-                    if (goingHome && distance >= roamRadius)
-                    {
-                        npc.CurrentBehaviour = BaseNpc.Behaviour.Wander;
-                        npc.SetFact(NPCPlayerApex.Facts.Speed, (byte)NPCPlayerApex.SpeedEnum.Walk, true, true);
-                        npc.TargetSpeed = ins.config.NPCTargetSpeed;
-                        npc.GetNavAgent.SetDestination(spawnPoint);
-                        npc.Destination = spawnPoint;
-                    }
-                    else
-                    {
-                        goingHome = false;
-                    }
+                    return;
                 }
+
+                ShouldRelocate();
             }
 
             void OnDestroy()
             {
                 if (npc != null && !npc.IsDestroyed)
                     npc.Kill();
+            }
+
+            void ShouldRelocate()
+            {
+                float distance = Vector3.Distance(npc.transform.position, spawnPoint);
+
+                if (!goingHome && distance >= roamRadius)
+                {
+                    goingHome = true;
+                }
+
+                if (goingHome && distance >= roamRadius)
+                {
+                    npc.CurrentBehaviour = BaseNpc.Behaviour.Wander;
+                    npc.SetFact(NPCPlayerApex.Facts.Speed, (byte)NPCPlayerApex.SpeedEnum.Walk, true, true);
+                    npc.TargetSpeed = ins.config.NPCTargetSpeed;
+                    npc.GetNavAgent.SetDestination(spawnPoint);
+                    npc.Destination = spawnPoint;
+                }
+                else
+                {
+                    goingHome = false;
+                }
             }
         }
 
@@ -518,7 +522,7 @@ namespace Oxide.Plugins
 
             void Start()
             {
-                entity = this.GetComponent<BaseEntity>();
+                entity = GetComponent<BaseEntity>();
                 if (entity == null)
                 {
                     Destroy(this);
@@ -556,7 +560,7 @@ namespace Oxide.Plugins
             if (player != null && player.IsAdmin && !storedData.EventActive)
             {
                 StartEvent();
-            }                
+            }
         }
 
         [ChatCommand("guarded-end")]
