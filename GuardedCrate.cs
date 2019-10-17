@@ -5,6 +5,7 @@ using Rust;
 using UnityEngine;
 using Facepunch;
 using Oxide.Core;
+using Oxide.Core.Plugins;
 using Oxide.Game.Rust.Cui;
 using Oxide.Core.Configuration;
 using Oxide.Core.Libraries.Covalence;
@@ -15,6 +16,8 @@ namespace Oxide.Plugins
     [Description("Eliminate the scientits to gain high value loot")]
     class GuardedCrate : RustPlugin
     {
+        [PluginReference] Plugin Kits;
+
         #region Vars
         public const string CratePrefab     = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
         public const string CargoPrefab     = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
@@ -26,6 +29,10 @@ namespace Oxide.Plugins
         public static GuardedCrate ins;
         private Vector3 eventPosition;
         private int LayerMasks = LayerMask.GetMask("Terrain", "World");
+        private List<string> Avoids = new List<string> {
+            "ice",
+            "rock"
+        };
 
         private List<MonumentInfo> Monuments
         {
@@ -110,12 +117,12 @@ namespace Oxide.Plugins
         {
             lang.RegisterMessages(new Dictionary<string, string>
             {
-               ["EventStart"]      = "Guarded crate event started at {0}",
-               ["EventEnded"]      = "Guarded crate event ended.",
-               ["EventComplete"]   = "{0}, completed the guarded crate event.",
-               ["StatsList"]       = "Top:\n{0}",
-               ["StatsPlayer"]     = "Events complete: {0}",
-               ["StatsPlayerNone"] = "You have not completed any events"
+               ["EventStart"]      = "<color=#DC143C>Guarded Crate Event</color>: started at {0}.",
+               ["EventEnded"]      = "<color=#DC143C>Guarded Crate Event</color>: has ended.",
+               ["Leaderboard"]     = "<color=#DC143C>Guarded Crate Event</color>: Leaderboard\n\n{0}",
+               ["EventComplete"]   = "<color=#DC143C>Guarded Crate Event</color>: {0}, completed the event.",
+               ["Stats"]           = "<color=#DC143C>Guarded Crate Event</color>: {0}, events completed.",
+               ["StatsNone"]       = "<color=#DC143C>Guarded Crate Event</color>: You have not completed any events."
             }, this);
         }
 
@@ -128,13 +135,12 @@ namespace Oxide.Plugins
         {
             config     = Config.ReadObject<PluginConfig>();
             storedData = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name);
-
             ResetEvent();
         }
 
         private void Unload()
         {
-            CleanEvent();
+            ResetEvent();
         }
 
         private void OnLootEntity(BasePlayer player, StorageContainer entity)
@@ -180,7 +186,6 @@ namespace Oxide.Plugins
             SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnGuards());
 
             storedData.EventActive = true;
-
             SaveData();
 
             PrintToChat(Lang("EventStart", null, GridReference(eventPosition)));
@@ -208,7 +213,6 @@ namespace Oxide.Plugins
             storedData.CrateID     = 0;
             storedData.MarkerID    = 0;
             storedData.Bots.Clear();
-
             SaveData();
 
             Interface.Oxide.LogError("[Guarded Crate] Event ended.");
@@ -250,8 +254,8 @@ namespace Oxide.Plugins
             }
 
             marker.alpha  = 0.7f;
-            marker.color1 = new Color(0.1f, 0.1f, 0.1f);
-            marker.color2 = new Color(1.0f, 1.0f, 1.0f);
+            marker.color1 = SetColor(250, 25, 59);
+            marker.color2 = SetColor(255, 255, 255);
             marker.radius = 0.6f;
             marker.Spawn();
             marker.SendUpdate();
@@ -305,12 +309,14 @@ namespace Oxide.Plugins
             npc._health     = health;
             npc._maxHealth  = npc.health;
             npc.Spawn();
+            npc.inventory.Strip();
             npc.gameObject.AddComponent<GuardComponent>().shouldChase = shouldChase;
+
+            Interface.Oxide.CallHook("GiveKit", npc, "guard");
 
             if (!storedData.Bots.Contains(npc.net.ID))
             {
                 storedData.Bots.Add(npc.net.ID);
-
                 SaveData();
             }
         }
@@ -325,7 +331,7 @@ namespace Oxide.Plugins
 
                 if (!FindValidSpawn(eventPosition + (UnityEngine.Random.onUnitSphere * config.NPCRadius), 1, out position)) continue;
 
-                SpawnGuard(position, config.NPCHealth, (UnityEngine.Random.Range(0,8) >= 4) ? true : false);
+                SpawnGuard(position, config.NPCHealth, (i % 2 == 0) ? true : false);
 
                 yield return new WaitForSeconds(0.5f);
             }
@@ -336,6 +342,8 @@ namespace Oxide.Plugins
 
         #region Helpers
         private string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
+
+        private Color SetColor(int r, int g, int b) => new Color(r/255f, g/255f, b/255f);
 
         private string CreateName(ulong v) => Facepunch.RandomUsernames.Get((int)(v % 2147483647uL));        
 
@@ -391,8 +399,7 @@ namespace Oxide.Plugins
                 if (Physics.Raycast(new Vector3(position.x, position.y + 200f, position.z), Vector3.down, out hit, Mathf.Infinity, LayerMasks))
                 {
                     Vector3 pos = hit.point;
-
-                    if (!IsMonument(pos) && !WaterLevel.Test(pos))
+                    if (!IsMonument(pos) && !WaterLevel.Test(pos) && !Avoids.Contains(hit.collider.gameObject.name))
                     {
                         result = pos;
 
@@ -486,17 +493,20 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                npc.Stats.AggressionRange      = ins.config.NPCAgressionRange;
-                npc.Stats.VisionRange          = ins.config.NPCVisionRange;
-                npc.Stats.LongRange            = 300f;
-                npc.Stats.DeaggroCooldown      = 120f;
-                npc.SpawnPosition              = npc.transform.position;
-                npc.Destination                = npc.transform.position;
+                npc.RadioEffect           = new GameObjectRef();
+                npc.DeathEffect           = new GameObjectRef();
+                npc.Stats.AggressionRange = ins.config.NPCAgressionRange;
+                npc.Stats.VisionRange     = ins.config.NPCVisionRange;
+                npc.Stats.MediumRange     = 100f;
+                npc.Stats.LongRange       = 250f;
+                npc.Stats.DeaggroCooldown = 60f;
+                npc.SpawnPosition         = npc.transform.position;
+                npc.Destination           = npc.transform.position;
                 npc.InitFacts();
                 npc.SendNetworkUpdate();
 
                 spawnPoint = npc.transform.position;
-                roamRadius = shouldChase ? UnityEngine.Random.Range(0,100) : UnityEngine.Random.Range(0,50);
+                roamRadius = UnityEngine.Random.Range(0,50);
             }
 
             void Update()
@@ -517,7 +527,6 @@ namespace Oxide.Plugins
             void ShouldRelocate()
             {
                 float distance = Vector3.Distance(npc.transform.position, spawnPoint);
-
                 if (!goingHome && distance >= roamRadius)
                 {
                     goingHome = true;
@@ -591,7 +600,7 @@ namespace Oxide.Plugins
         {
             if (player != null && player.IsAdmin && storedData.EventActive)
             {
-                CleanEvent();
+                ResetEvent();
             }
         }
 
@@ -613,11 +622,11 @@ namespace Oxide.Plugins
             }
 
             var stats = playerStats.OrderByDescending(x => x.Value)
-            .Select(x => x.Key + ": " + x.Value)
+            .Select(x => string.Format("{0}: {1}", x.Key, x.Value))
             .Take(5)
             .ToArray();
 
-            PrintToChat(player, Lang("StatsList", player.userID.ToString(), string.Join("\n", stats)));
+            PrintToChat(player, Lang("Leaderboard", player.userID.ToString(), string.Join("\n", stats)));
         }
 
         [ChatCommand("guarded-stats")]
@@ -630,11 +639,11 @@ namespace Oxide.Plugins
 
             if (storedData.Players.ContainsKey(player.userID))
             {
-                PrintToChat(player, Lang("StatsPlayer", player.userID.ToString(), storedData.Players[player.userID]));
+                PrintToChat(player, Lang("Stats", player.userID.ToString(), storedData.Players[player.userID]));
                 return;
             }
 
-            PrintToChat(player, Lang("StatsPlayerNone", player.userID.ToString()));
+            PrintToChat(player, Lang("StatsNone", player.userID.ToString()));
         }
         #endregion
     }
