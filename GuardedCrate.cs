@@ -27,12 +27,10 @@ namespace Oxide.Plugins
         public const int MaxSpawnTries      = 250;
 
         public static GuardedCrate ins;
+        private readonly int BlockedMask     = LayerMask.GetMask("Player (Server)", "Prevent Building", "Construction", "Deployed", "Trigger");
+        private readonly int LayerMasks      = LayerMask.GetMask("Terrain", "World", "Default");
+        private readonly List<string> Avoids = new List<string> { "ice", "rock" };
         private Vector3 eventPosition;
-        private int LayerMasks = LayerMask.GetMask("Terrain", "World");
-        private List<string> Avoids = new List<string> {
-            "ice",
-            "rock"
-        };
 
         private List<MonumentInfo> Monuments
         {
@@ -61,13 +59,16 @@ namespace Oxide.Plugins
 
         class PluginConfig
         {
+            public float EventStartTime;
             public int NPCCount;
             public int NPCRadius;
             public float NPCHealth;
             public int NPCRoamRadius;
             public float NPCTargetSpeed;
-            public float NPCVisionRange;
             public float NPCAgressionRange;
+            public float NPCVisionRange;
+            public float NPCLongRange;
+            public float NPCMediumRange;
             public Dictionary<string, int> LootItems;
         }
 
@@ -75,13 +76,16 @@ namespace Oxide.Plugins
         {
             return new PluginConfig
             {
+                EventStartTime    = 60f,
                 NPCCount          = 40,
                 NPCRadius         = 20,
-                NPCHealth         = 200f,
-                NPCRoamRadius     = 100,
+                NPCHealth         = 150f,
+                NPCRoamRadius     = 60,
                 NPCTargetSpeed    = 0.5f,
-                NPCVisionRange    = 100f,
-                NPCAgressionRange = 500f,
+                NPCAgressionRange = 250f, 
+                NPCVisionRange    = 250f,
+                NPCLongRange      = 250f,
+                NPCMediumRange    = 100f,
                 LootItems         = new Dictionary<string, int> {
                    { "rifle.ak", 1 },
                    { "rifle.bold", 1 },
@@ -100,11 +104,11 @@ namespace Oxide.Plugins
         #region Data
         private StoredData storedData;
 
-        class StoredData 
+        private class StoredData 
         {
             public Dictionary<ulong, int> Players = new Dictionary<ulong, int>();
             public List<uint> Bots  = new List<uint>();
-            public bool EventActive = false;            
+            public bool EventActive = false;
             public uint CrateID     = 0;
             public uint MarkerID    = 0;
         }
@@ -115,11 +119,11 @@ namespace Oxide.Plugins
         #region Oxide
         protected override void LoadDefaultMessages()
         {
-            lang.RegisterMessages(new Dictionary<string, string>
-            {
-               ["EventStart"]      = "<color=#DC143C>Guarded Crate Event</color>: started at {0}.",
+            lang.RegisterMessages(new Dictionary<string, string> {
+               ["EventStart"]      = "<color=#DC143C>Guarded Crate Event</color>: starting in 60s at {0}, armed guards stay clear or fight for your life.",
+               ["EventActive"]     = "<color=#DC143C>Guarded Crate Event</color>: is now active in {0}.",
                ["EventEnded"]      = "<color=#DC143C>Guarded Crate Event</color>: has ended.",
-               ["Leaderboard"]     = "<color=#DC143C>Guarded Crate Event</color>: Leaderboard\n\n{0}",
+               ["Leaderboard"]     = "<color=#DC143C>Guarded Crate Event</color>: Leaderboard\n{0}",
                ["EventComplete"]   = "<color=#DC143C>Guarded Crate Event</color>: {0}, completed the event.",
                ["Stats"]           = "<color=#DC143C>Guarded Crate Event</color>: {0}, events completed.",
                ["StatsNone"]       = "<color=#DC143C>Guarded Crate Event</color>: You have not completed any events."
@@ -143,6 +147,16 @@ namespace Oxide.Plugins
             ResetEvent();
         }
 
+        private object OnNpcPlayerTarget(NPCPlayerApex npcPlayer, BaseEntity entity)
+        {
+            if (entity is NPCPlayerApex)
+            {
+                return false;
+            }
+
+            return null;
+        }
+
         private void OnLootEntity(BasePlayer player, StorageContainer entity)
         {
             if (entity == null || entity.net == null || entity.net.ID != storedData.CrateID || !storedData.EventActive)
@@ -161,7 +175,7 @@ namespace Oxide.Plugins
 
             CleanEvent();
 
-            PrintToChat(Lang("EventComplete", null, player.displayName.ToString()));
+            PrintToChat(Lang("EventComplete", null, player.displayName));
         }
         #endregion
  
@@ -175,38 +189,44 @@ namespace Oxide.Plugins
             }
 
             eventPosition = (Vector3)spawnPos;
-
-            CreateEvent();
-        }
-
-        public void CreateEvent()
-        {
-            SpawnCargoPlane();
+            
             SpawnMarker();
-            SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnGuards());
 
-            storedData.EventActive = true;
-            SaveData();
+            timer.Once(config.EventStartTime, () => ActivateEvent());
 
             PrintToChat(Lang("EventStart", null, GridReference(eventPosition)));
 
             Interface.Oxide.LogError("[Guarded Crate] Event Started.");
         }
 
+        public void ActivateEvent()
+        {
+            SpawnCargoPlane();
+            SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnGuards());
+
+            storedData.EventActive = true;
+            SaveData();
+
+            PrintToChat(Lang("EventActive", null, GridReference(eventPosition)));
+
+            Interface.Oxide.LogError("[Guarded Crate] Event activated.");
+        }
+
         private void CleanEvent()
         {
-            foreach (MapMarkerGenericRadius marker in GameObject.FindObjectsOfType<MapMarkerGenericRadius>().Where(m => m.net != null && m.net.ID == storedData.MarkerID))
+            BaseNetworkable marker = BaseNetworkable.serverEntities.Find(storedData.MarkerID);
+            if (marker is MapMarkerGenericRadius)
             {
-                if (marker == null || marker.IsDestroyed) continue;
-
                 marker?.Kill();
             }
 
-            foreach (NPCPlayerApex npc in GameObject.FindObjectsOfType<NPCPlayerApex>().Where(b => b.net != null && storedData.Bots.Contains(b.net.ID)))
+            foreach(uint netID in storedData.Bots)
             {
-                if (npc == null || npc.IsDestroyed) continue;
-
-                npc?.Kill();
+                BaseNetworkable npc = BaseNetworkable.serverEntities.Find(netID);
+                if (npc is NPCPlayerApex)
+                {
+                    npc?.Kill();
+                }
             }
 
             storedData.EventActive = false;
@@ -220,10 +240,9 @@ namespace Oxide.Plugins
 
         private void ResetEvent()
         {
-            foreach (HackableLockedCrate crate in GameObject.FindObjectsOfType<HackableLockedCrate>().Where(c => c.net != null && c.net.ID == storedData.CrateID))
+            BaseNetworkable crate = BaseNetworkable.serverEntities.Find(storedData.CrateID);
+            if (crate is HackableLockedCrate)
             {
-                if (crate == null || crate.IsDestroyed) continue;
-
                 crate?.Kill();
             }
 
@@ -243,6 +262,8 @@ namespace Oxide.Plugins
             cargoplane.InitDropPosition(eventPosition);
             cargoplane.Spawn();
             cargoplane.gameObject.AddComponent<CargoPlaneComponent>();
+
+            Interface.Oxide.LogError("[Guarded Crate] Cargo plane spawned.");
         }
 
         private void SpawnMarker()
@@ -253,19 +274,22 @@ namespace Oxide.Plugins
                 return;
             }
 
-            marker.alpha  = 0.7f;
-            marker.color1 = SetColor(250, 25, 59);
-            marker.color2 = SetColor(255, 255, 255);
+            marker.alpha  = 0.8f;
+            marker.color1 = RGBColorConverter(240, 12, 12);
+            marker.color2 = RGBColorConverter(255, 255, 255);
             marker.radius = 0.6f;
             marker.Spawn();
             marker.SendUpdate();
 
             storedData.MarkerID = marker.net.ID;
+            SaveData();
+
+            Interface.Oxide.LogError("[Guarded Crate] Marker spawned.");
         }
 
-        private void SpawnHackableCrate()
+        private void SpawnCrate(Vector3 pos)
         {
-            HackableLockedCrate crate = GameManager.server.CreateEntity(CratePrefab, eventPosition + new Vector3(0, 250f, 0)) as HackableLockedCrate;
+            HackableLockedCrate crate = GameManager.server.CreateEntity(CratePrefab, pos) as HackableLockedCrate;
             if (crate == null)
             {
                 return;
@@ -283,18 +307,16 @@ namespace Oxide.Plugins
                 item.Remove(0f);
             }
 
-            foreach (var loot in config.LootItems)
+            foreach (string lootKey in config.LootItems.Keys)
             {
-                Item item = ItemManager.CreateByName(loot.Key, loot.Value);
-                if (item == null)
-                {
-                    continue;
-                }
+                Item item = ItemManager.CreateByName(lootKey, config.LootItems[lootKey]);
+                if (item == null) continue;
 
                 item.MoveToContainer(crate.inventory);
             }
 
             storedData.CrateID = crate.net.ID;
+            SaveData();
         }
 
         private void SpawnGuard(Vector3 position, float health = 150f, bool shouldChase = false)
@@ -305,20 +327,22 @@ namespace Oxide.Plugins
                 return;
             }
 
-            npc.displayName = CreateName(npc.userID);
+            npc.displayName = BotName(npc.userID);
             npc._health     = health;
-            npc._maxHealth  = npc.health;
+            npc._maxHealth  = npc._health;
             npc.Spawn();
             npc.inventory.Strip();
             npc.gameObject.AddComponent<GuardComponent>().shouldChase = shouldChase;
 
             Interface.Oxide.CallHook("GiveKit", npc, "guard");
-
-            if (!storedData.Bots.Contains(npc.net.ID))
+            
+            if (storedData.Bots.Contains(npc.net.ID))
             {
-                storedData.Bots.Add(npc.net.ID);
-                SaveData();
+                return;
             }
+
+            storedData.Bots.Add(npc.net.ID);
+            SaveData();
         }
 
         IEnumerator SpawnGuards()
@@ -340,12 +364,234 @@ namespace Oxide.Plugins
         }
         #endregion
 
+        #region Scripts
+        public class CargoPlaneComponent : MonoBehaviour
+        {
+            public CargoPlane plane;
+            public bool dropped = false;
+
+            void Start()
+            {
+                plane = GetComponent<CargoPlane>();
+                if (plane == null)
+                {
+                    Destroy(this);
+                    return;
+                }
+
+                plane.dropped = true;
+            }
+
+            void Update()
+            {
+                plane.secondsTaken += Time.deltaTime;
+
+                if (!dropped && (double) Mathf.InverseLerp(0.0f, plane.secondsToTake, plane.secondsTaken) >= 0.5)
+                {
+                    dropped = true;
+
+                    ins.SpawnCrate(plane.transform.position);
+                }
+            }
+        }
+
+        public class HackableCrateComponent : MonoBehaviour
+        {
+            public HackableLockedCrate crate;
+
+            void Start()
+            {
+                crate = GetComponent<HackableLockedCrate>();
+                if (crate == null)
+                {
+                    Destroy(this);
+
+                    return;
+                }
+
+                crate.StartHacking();                
+
+                GetComponent<StorageContainer>().decayTimer = float.NegativeInfinity;
+            }
+        }
+
+        public class GuardComponent : FacepunchBehaviour
+        {
+            public NPCPlayerApex npc;
+            public Vector3 spawnPoint;
+            public bool goingHome;
+            public bool shouldChase;
+            public int roamRadius;
+
+            void Start()
+            {
+                npc = GetComponent<NPCPlayerApex>();
+                if (npc == null)
+                {
+                    Destroy(this);
+                    return;
+                }
+
+                npc.RadioEffect           = new GameObjectRef();
+                npc.DeathEffect           = new GameObjectRef();
+                npc.Stats.AggressionRange = ins.config.NPCAgressionRange;
+                npc.Stats.VisionRange     = ins.config.NPCVisionRange;
+                npc.Stats.LongRange       = ins.config.NPCLongRange;
+                npc.Stats.MediumRange     = ins.config.NPCMediumRange;
+                npc.Stats.DeaggroCooldown = 180f;
+                npc.SpawnPosition         = npc.transform.position;
+                npc.Destination           = npc.transform.position;
+                npc.InitFacts();
+                npc.SendNetworkUpdate();
+
+                spawnPoint = npc.transform.position;
+                roamRadius = UnityEngine.Random.Range(0,50);
+            }
+
+            void Update()
+            {
+                if (!npc.GetNavAgent.isOnNavMesh || (npc.GetFact(NPCPlayerApex.Facts.IsAggro)) == 1 && shouldChase)
+                {
+                    return;
+                }
+
+                ShouldRelocate();
+            }
+
+            void ShouldRelocate()
+            {
+                float distance = Vector3.Distance(npc.transform.position, spawnPoint);
+                if (!goingHome && distance >= roamRadius)
+                {
+                    goingHome = true;
+                }
+
+                if (goingHome && distance >= roamRadius)
+                {
+                    npc.CurrentBehaviour = BaseNpc.Behaviour.Wander;
+                    npc.SetFact(NPCPlayerApex.Facts.Speed, (byte)NPCPlayerApex.SpeedEnum.Walk, true, true);
+                    npc.TargetSpeed = ins.config.NPCTargetSpeed;
+                    npc.GetNavAgent.SetDestination(spawnPoint);
+                    npc.Destination = spawnPoint;
+                }
+                else
+                {
+                    goingHome = false;
+                }
+            }
+        }
+
+        public class ParachuteComponent : FacepunchBehaviour
+        {
+            public BaseEntity parachute;
+            public BaseEntity entity;
+
+            void Start()
+            {
+                entity = GetComponent<BaseEntity>();
+                if (entity == null)
+                {
+                    Destroy(this);
+                    return;
+                }
+
+                parachute = GameManager.server.CreateEntity(ChutePrefab, entity.transform.position) as BaseEntity;
+                if (parachute == null)
+                {
+                    return;
+                }
+
+                parachute.Spawn();
+                parachute.SetParent(entity);
+                parachute.transform.localPosition = new Vector3(0, 1f, 0);
+
+                Rigidbody rb = entity.GetComponent<Rigidbody>();
+                rb.drag      = 1.5f;
+                rb.AddForce(-transform.up * -1f);
+                rb.useGravity = true;
+            }
+
+            void OnCollisionEnter(Collision col)
+            {
+                if (parachute != null && !parachute.IsDestroyed)
+                    parachute.Kill();
+            }
+        }
+        #endregion
+
+        #region Chat Commands
+        [ChatCommand("guarded-start")]
+        private void StartCommand(BasePlayer player, string command, string[] args)
+        {
+            if (player == null || !player.IsAdmin || storedData.EventActive)
+            {
+                return;
+            }
+
+            StartEvent();
+        }
+
+        [ChatCommand("guarded-end")]
+        private void EndCommand(BasePlayer player, string command, string[] args)
+        {
+            if (player == null || !player.IsAdmin || !storedData.EventActive)
+            {
+                return;
+            }
+
+            ResetEvent();
+        }
+
+        [ChatCommand("guarded-top")]
+        private void TopCommand(BasePlayer player, string command, string[] args)
+        {
+            if (player == null)
+            {
+                return;
+            }
+
+            Dictionary<string, int> playerStats = new Dictionary<string, int>();
+
+            foreach (KeyValuePair<ulong, int> item in storedData.Players)
+            {
+                BasePlayer foundPlayer = BasePlayer.FindByID(item.Key);
+                if (foundPlayer != null)
+                    playerStats.Add(foundPlayer.displayName, item.Value);
+            }
+
+            var stats = playerStats.OrderByDescending(x => x.Value)
+            .Select(x => string.Format("{0}: {1}", x.Key, x.Value))
+            .Take(5)
+            .ToArray();
+
+            player.ChatMessage(Lang("Leaderboard", player.UserIDString, string.Join("\n", stats)));
+        }
+
+        [ChatCommand("guarded-stats")]
+        private void StatsCommand(BasePlayer player, string command, string[] args)
+        {
+            if (player == null)
+            {
+                return;
+            }
+
+            if (storedData.Players.ContainsKey(player.userID))
+            {
+                player.ChatMessage(Lang("Stats", player.UserIDString, storedData.Players[player.userID]));
+
+                return;
+            }
+
+            player.ChatMessage(Lang("StatsNone", player.UserIDString));
+        }
+        #endregion
+
         #region Helpers
         private string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
 
-        private Color SetColor(int r, int g, int b) => new Color(r/255f, g/255f, b/255f);
+        private string BotName(ulong v) => Facepunch.RandomUsernames.Get((int)(v % 2147483647uL));
 
-        private string CreateName(ulong v) => Facepunch.RandomUsernames.Get((int)(v % 2147483647uL));        
+        private Color RGBColorConverter(int r, int g, int b) => new Color(r/255f, g/255f, b/255f);        
 
         public string GridReference(Vector3 position) // Credit: Jake_Rich
         {
@@ -424,226 +670,6 @@ namespace Oxide.Plugins
             }
 
             return false;
-        }
-        #endregion
-
-        #region Scripts
-        public class CargoPlaneComponent : MonoBehaviour
-        {
-            public CargoPlane cargoplane;
-            public bool dropped = false;
-
-            void Start()
-            {
-                cargoplane = GetComponent<CargoPlane>();
-                if (cargoplane == null)
-                {
-                    Destroy(this);
-                    return;
-                }
-
-                cargoplane.dropped = true;
-            }
-
-            void Update()
-            {
-                cargoplane.secondsTaken += Time.deltaTime;
-
-                if (!dropped && (double) Mathf.InverseLerp(0.0f, cargoplane.secondsToTake, cargoplane.secondsTaken) >= 0.5)
-                {
-                    dropped = true;
-
-                    ins.SpawnHackableCrate();
-                }
-            }
-        }
-
-        public class HackableCrateComponent : MonoBehaviour
-        {
-            public HackableLockedCrate crate;
-
-            void Start()
-            {
-                crate = GetComponent<HackableLockedCrate>();
-                if (crate == null)
-                {
-                    Destroy(this);
-
-                    return;
-                }
-
-                crate.StartHacking();
-            }
-        }
-
-        public class GuardComponent : FacepunchBehaviour
-        {
-            public NPCPlayerApex npc;
-            public Vector3 spawnPoint;
-            public bool goingHome;
-            public bool shouldChase;
-            public int roamRadius;
-
-            void Start()
-            {
-                npc = GetComponent<NPCPlayerApex>();
-                if (npc == null)
-                {
-                    Destroy(this);
-                    return;
-                }
-
-                npc.RadioEffect           = new GameObjectRef();
-                npc.DeathEffect           = new GameObjectRef();
-                npc.Stats.AggressionRange = ins.config.NPCAgressionRange;
-                npc.Stats.VisionRange     = ins.config.NPCVisionRange;
-                npc.Stats.MediumRange     = 100f;
-                npc.Stats.LongRange       = 250f;
-                npc.Stats.DeaggroCooldown = 60f;
-                npc.SpawnPosition         = npc.transform.position;
-                npc.Destination           = npc.transform.position;
-                npc.InitFacts();
-                npc.SendNetworkUpdate();
-
-                spawnPoint = npc.transform.position;
-                roamRadius = UnityEngine.Random.Range(0,50);
-            }
-
-            void Update()
-            {
-                if (!npc.GetNavAgent.isOnNavMesh)
-                {
-                    return;
-                }
-
-                if ((npc.GetFact(NPCPlayerApex.Facts.IsAggro)) == 1 && shouldChase)
-                {
-                    return;
-                }
-
-                ShouldRelocate();
-            }
-
-            void ShouldRelocate()
-            {
-                float distance = Vector3.Distance(npc.transform.position, spawnPoint);
-                if (!goingHome && distance >= roamRadius)
-                {
-                    goingHome = true;
-                }
-
-                if (goingHome && distance >= roamRadius)
-                {
-                    npc.CurrentBehaviour = BaseNpc.Behaviour.Wander;
-                    npc.SetFact(NPCPlayerApex.Facts.Speed, (byte)NPCPlayerApex.SpeedEnum.Walk, true, true);
-                    npc.TargetSpeed = ins.config.NPCTargetSpeed;
-                    npc.GetNavAgent.SetDestination(spawnPoint);
-                    npc.Destination = spawnPoint;
-                }
-                else
-                {
-                    goingHome = false;
-                }
-            }
-        }
-
-        public class ParachuteComponent : FacepunchBehaviour
-        {
-            public BaseEntity parachute;
-            public BaseEntity entity;
-
-            void Start()
-            {
-                entity = GetComponent<BaseEntity>();
-                if (entity == null)
-                {
-                    Destroy(this);
-                    return;
-                }
-
-                parachute = GameManager.server.CreateEntity(ChutePrefab, entity.transform.position) as BaseEntity;
-                if (parachute == null)
-                {
-                    return;
-                }
-
-                parachute.Spawn();
-                parachute.SetParent(entity);
-                parachute.transform.localPosition = new Vector3(0, 1f, 0);
-
-                Rigidbody rb = entity.GetComponent<Rigidbody>();
-                rb.drag      = 2f;
-                rb.AddForce(-transform.up * -1f);
-                rb.useGravity = true;
-            }
-
-            void OnCollisionEnter(Collision col)
-            {
-                if (parachute != null && !parachute.IsDestroyed)
-                    parachute.Kill();
-            }
-        }
-        #endregion
-
-        #region Chat Commands
-        [ChatCommand("guarded")]
-        private void GuardedCommand(BasePlayer player, string command, string[] args)
-        {
-            if (player != null && player.IsAdmin && !storedData.EventActive)
-            {
-                StartEvent();
-            }
-        }
-
-        [ChatCommand("guarded-end")]
-        private void GuardedEndCommand(BasePlayer player, string command, string[] args)
-        {
-            if (player != null && player.IsAdmin && storedData.EventActive)
-            {
-                ResetEvent();
-            }
-        }
-
-        [ChatCommand("guarded-top")]
-        private void GuardedTopCommand(BasePlayer player, string command, string[] args)
-        {
-            if (player == null)
-            {
-                return;
-            }
-
-            Dictionary<string, int> playerStats = new Dictionary<string, int>();
-
-            foreach (KeyValuePair<ulong, int> item in storedData.Players)
-            {
-                BasePlayer foundPlayer = BasePlayer.FindByID(item.Key);
-                if (foundPlayer != null)
-                    playerStats.Add(foundPlayer.displayName, item.Value);
-            }
-
-            var stats = playerStats.OrderByDescending(x => x.Value)
-            .Select(x => string.Format("{0}: {1}", x.Key, x.Value))
-            .Take(5)
-            .ToArray();
-
-            PrintToChat(player, Lang("Leaderboard", player.userID.ToString(), string.Join("\n", stats)));
-        }
-
-        [ChatCommand("guarded-stats")]
-        private void GuardedStatsCommand(BasePlayer player, string command, string[] args)
-        {
-            if (player == null)
-            {
-                return;
-            }
-
-            if (storedData.Players.ContainsKey(player.userID))
-            {
-                PrintToChat(player, Lang("Stats", player.userID.ToString(), storedData.Players[player.userID]));
-                return;
-            }
-
-            PrintToChat(player, Lang("StatsNone", player.userID.ToString()));
         }
         #endregion
     }
