@@ -77,12 +77,12 @@ namespace Oxide.Plugins
             return new PluginConfig
             {
                 EventStartTime    = 60f,
-                NPCCount          = 40,
+                NPCCount          = 50,
                 NPCRadius         = 20,
-                NPCHealth         = 150f,
+                NPCHealth         = 200f,
                 NPCRoamRadius     = 60,
                 NPCTargetSpeed    = 0.5f,
-                NPCAgressionRange = 250f, 
+                NPCAgressionRange = 350f, 
                 NPCVisionRange    = 250f,
                 NPCLongRange      = 250f,
                 NPCMediumRange    = 100f,
@@ -189,7 +189,7 @@ namespace Oxide.Plugins
             }
 
             eventPosition = (Vector3)spawnPos;
-            
+
             SpawnMarker();
 
             timer.Once(config.EventStartTime, () => ActivateEvent());
