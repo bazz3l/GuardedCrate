@@ -27,8 +27,6 @@ namespace Oxide.Plugins
         public const int MaxSpawnTries      = 250;
 
         public static GuardedCrate ins;
-        private readonly int BlockedMask     = LayerMask.GetMask("Player (Server)", "Prevent Building", "Construction", "Deployed", "Trigger");
-        private readonly int LayerMasks      = LayerMask.GetMask("Terrain", "World", "Default");
         private readonly List<string> Avoids = new List<string> { "ice", "rock" };
         private Vector3 eventPosition;
 
@@ -106,7 +104,7 @@ namespace Oxide.Plugins
 
         private class StoredData 
         {
-            public Dictionary<ulong, int> Players = new Dictionary<ulong, int>();
+            public Dictionary<ulong, PlayerStatistic> Statistics = new Dictionary<ulong, PlayerStatistic>();
             public List<uint> Bots  = new List<uint>();
             public bool EventActive = false;
             public uint CrateID     = 0;
@@ -125,7 +123,7 @@ namespace Oxide.Plugins
                ["EventEnded"]      = "<color=#DC143C>Guarded Crate Event</color>: has ended.",
                ["Leaderboard"]     = "<color=#DC143C>Guarded Crate Event</color>: Leaderboard\n{0}",
                ["EventComplete"]   = "<color=#DC143C>Guarded Crate Event</color>: {0}, completed the event.",
-               ["Stats"]           = "<color=#DC143C>Guarded Crate Event</color>: {0}, events completed.",
+               ["Stats"]           = "<color=#DC143C>Guarded Crate Event</color>: {0}",
                ["StatsNone"]       = "<color=#DC143C>Guarded Crate Event</color>: You have not completed any events."
             }, this);
         }
@@ -147,7 +145,7 @@ namespace Oxide.Plugins
             ResetEvent();
         }
 
-        private object OnNpcPlayerTarget(NPCPlayerApex npcPlayer, BaseEntity entity)
+        private object OnNpcPlayerTarget(NPCPlayerApex npc, BaseEntity entity)
         {
             if (entity is NPCPlayerApex)
             {
@@ -157,6 +155,22 @@ namespace Oxide.Plugins
             return null;
         }
 
+        private void OnPlayerDie(NPCPlayerApex npc, HitInfo info)
+        {
+            if (npc == null || npc.net == null || !storedData.Bots.Contains(npc.net.ID))
+            {
+                return;
+            }
+
+            BasePlayer player = info?.Initiator as BasePlayer;
+            if (player == null)
+            {
+                return;
+            }
+
+            GetPlayerStatistics(player).GuardsKilled++;
+        }
+
         private void OnLootEntity(BasePlayer player, StorageContainer entity)
         {
             if (entity == null || entity.net == null || entity.net.ID != storedData.CrateID || !storedData.EventActive)
@@ -164,14 +178,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            if (storedData.Players.ContainsKey(player.userID))
-            {
-                storedData.Players[player.userID]++;
-            }
-            else
-            {
-                storedData.Players.Add(player.userID, 1);
-            }
+            GetPlayerStatistics(player).EventsWon++;
 
             CleanEvent();
 
@@ -327,22 +334,19 @@ namespace Oxide.Plugins
                 return;
             }
 
-            npc.displayName = BotName(npc.userID);
-            npc._health     = health;
-            npc._maxHealth  = npc._health;
+            npc._health    = health;
+            npc._maxHealth = npc._health;
             npc.Spawn();
             npc.inventory.Strip();
             npc.gameObject.AddComponent<GuardComponent>().shouldChase = shouldChase;
 
             Interface.Oxide.CallHook("GiveKit", npc, "guard");
             
-            if (storedData.Bots.Contains(npc.net.ID))
+            if (!storedData.Bots.Contains(npc.net.ID))
             {
-                return;
+                storedData.Bots.Add(npc.net.ID);
+                SaveData();
             }
-
-            storedData.Bots.Add(npc.net.ID);
-            SaveData();
         }
 
         IEnumerator SpawnGuards()
@@ -405,11 +409,10 @@ namespace Oxide.Plugins
                 if (crate == null)
                 {
                     Destroy(this);
-
                     return;
                 }
 
-                crate.StartHacking();                
+                crate.StartHacking();
 
                 GetComponent<StorageContainer>().decayTimer = float.NegativeInfinity;
             }
@@ -450,7 +453,12 @@ namespace Oxide.Plugins
 
             void Update()
             {
-                if (!npc.GetNavAgent.isOnNavMesh || (npc.GetFact(NPCPlayerApex.Facts.IsAggro)) == 1 && shouldChase)
+                if (!npc.GetNavAgent.isOnNavMesh)
+                {
+                    return;
+                }
+
+                if ((npc.GetFact(NPCPlayerApex.Facts.IsAggro)) == 1 && shouldChase)
                 {
                     return;
                 }
@@ -519,8 +527,37 @@ namespace Oxide.Plugins
         }
         #endregion
 
+        #region Statistics
+        private PlayerStatistic GetPlayerStatistics(BasePlayer player)
+        {
+            if (!storedData.Statistics.ContainsKey(player.userID))
+            {
+                storedData.Statistics.Add(player.userID, new PlayerStatistic(player.displayName));
+            }
+
+            return storedData.Statistics[player.userID];
+        }
+
+        private class PlayerStatistic
+        {
+            public string PlayerName;
+            public int GuardsKilled = 0;
+            public int EventsWon    = 0;
+
+            public PlayerStatistic(string playerName)
+            {
+                PlayerName = playerName;
+            }
+
+            public override string ToString()
+            {
+                return string.Format("Events Won: {0}, Guards Killed: {1}", EventsWon, GuardsKilled);
+            }
+        }
+        #endregion
+
         #region Chat Commands
-        [ChatCommand("guarded-start")]
+        [ChatCommand("gstart")]
         private void StartCommand(BasePlayer player, string command, string[] args)
         {
             if (player == null || !player.IsAdmin || storedData.EventActive)
@@ -531,7 +568,7 @@ namespace Oxide.Plugins
             StartEvent();
         }
 
-        [ChatCommand("guarded-end")]
+        [ChatCommand("gend")]
         private void EndCommand(BasePlayer player, string command, string[] args)
         {
             if (player == null || !player.IsAdmin || !storedData.EventActive)
@@ -542,32 +579,7 @@ namespace Oxide.Plugins
             ResetEvent();
         }
 
-        [ChatCommand("guarded-top")]
-        private void TopCommand(BasePlayer player, string command, string[] args)
-        {
-            if (player == null)
-            {
-                return;
-            }
-
-            Dictionary<string, int> playerStats = new Dictionary<string, int>();
-
-            foreach (KeyValuePair<ulong, int> item in storedData.Players)
-            {
-                BasePlayer foundPlayer = BasePlayer.FindByID(item.Key);
-                if (foundPlayer != null)
-                    playerStats.Add(foundPlayer.displayName, item.Value);
-            }
-
-            var stats = playerStats.OrderByDescending(x => x.Value)
-            .Select(x => string.Format("{0}: {1}", x.Key, x.Value))
-            .Take(5)
-            .ToArray();
-
-            player.ChatMessage(Lang("Leaderboard", player.UserIDString, string.Join("\n", stats)));
-        }
-
-        [ChatCommand("guarded-stats")]
+        [ChatCommand("gstats")]
         private void StatsCommand(BasePlayer player, string command, string[] args)
         {
             if (player == null)
@@ -575,46 +587,14 @@ namespace Oxide.Plugins
                 return;
             }
 
-            if (storedData.Players.ContainsKey(player.userID))
-            {
-                player.ChatMessage(Lang("Stats", player.UserIDString, storedData.Players[player.userID]));
-
-                return;
-            }
-
-            player.ChatMessage(Lang("StatsNone", player.UserIDString));
+            player.ChatMessage(Lang("Stats", player.UserIDString, GetPlayerStatistics(player).ToString()));
         }
         #endregion
 
         #region Helpers
         private string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
 
-        private string BotName(ulong v) => Facepunch.RandomUsernames.Get((int)(v % 2147483647uL));
-
         private Color RGBColorConverter(int r, int g, int b) => new Color(r/255f, g/255f, b/255f);        
-
-        public string GridReference(Vector3 position) // Credit: Jake_Rich
-        {
-            Vector2 roundedPos = new Vector2(World.Size / 2 + position.x, World.Size / 2 - position.z);
-            string grid = $"{NumberToLetter(Mathf.FloorToInt(roundedPos.x / 145))}{Mathf.FloorToInt(roundedPos.y / 145)}";
-            return grid;
-        }
-
-        public string NumberToLetter(int num) // Credit: Jake_Rich
-        {
-            int num2 = Mathf.FloorToInt((float)(num / 26));
-            int num3 = num % 26;
-            string text = string.Empty;
-            if (num2 > 0)
-            {
-                for (int i = 0; i < num2; i++)
-                {
-                    text += System.Convert.ToChar(65 + i);
-                }
-            }
-
-            return text + System.Convert.ToChar(65 + num3).ToString();
-        }
 
         private Vector3? GetSpawnPos()
         {
@@ -642,7 +622,7 @@ namespace Oxide.Plugins
                 Vector3 position = center + UnityEngine.Random.insideUnitSphere * range;
 
                 RaycastHit hit;
-                if (Physics.Raycast(new Vector3(position.x, position.y + 200f, position.z), Vector3.down, out hit, Mathf.Infinity, LayerMasks))
+                if (Physics.Raycast(new Vector3(position.x, position.y + 200f, position.z), Vector3.down, out hit, Mathf.Infinity, LayerMask.GetMask("Terrain")))
                 {
                     Vector3 pos = hit.point;
                     if (!IsMonument(pos) && !WaterLevel.Test(pos) && !Avoids.Contains(hit.collider.gameObject.name))
@@ -670,6 +650,29 @@ namespace Oxide.Plugins
             }
 
             return false;
+        }
+
+        public string GridReference(Vector3 position) // Credit: Jake_Rich
+        {
+            Vector2 roundedPos = new Vector2(World.Size / 2 + position.x, World.Size / 2 - position.z);
+            string grid = $"{NumberToLetter(Mathf.FloorToInt(roundedPos.x / 145))}{Mathf.FloorToInt(roundedPos.y / 145)}";
+            return grid;
+        }
+
+        public string NumberToLetter(int num) // Credit: Jake_Rich
+        {
+            int num2 = Mathf.FloorToInt((float)(num / 26));
+            int num3 = num % 26;
+            string text = string.Empty;
+            if (num2 > 0)
+            {
+                for (int i = 0; i < num2; i++)
+                {
+                    text += System.Convert.ToChar(65 + i);
+                }
+            }
+
+            return text + System.Convert.ToChar(65 + num3).ToString();
         }
         #endregion
     }
