@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
-using Random = System.Random;
 using Rust;
 using UnityEngine;
 using Facepunch;
@@ -28,7 +27,6 @@ namespace Oxide.Plugins
         public const int MaxSpawnTries      = 300;
 
         public static GuardedCrate ins;
-        private readonly List<string> Avoids = new List<string> { "ice", "rock" };
         private Vector3 eventPosition;
 
         private List<MonumentInfo> Monuments
@@ -133,8 +131,6 @@ namespace Oxide.Plugins
             config     = Config.ReadObject<PluginConfig>();
             storedData = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name);
             ResetEvent();
-
-            //Puts("Monuments {0}", Monuments.Count);
         }
 
         private void Unload()
@@ -207,17 +203,13 @@ namespace Oxide.Plugins
         {
             BaseNetworkable marker = BaseNetworkable.serverEntities.Find(storedData.MarkerID);
             if (marker is MapMarkerGenericRadius)
-            {
                 marker?.Kill();
-            }
 
             foreach(uint netID in storedData.Bots)
             {
                 BaseNetworkable npc = BaseNetworkable.serverEntities.Find(netID);
                 if (npc is NPCPlayerApex)
-                {
                     npc?.Kill();
-                }
             }
 
             storedData.EventActive = false;
@@ -233,9 +225,7 @@ namespace Oxide.Plugins
         {
             BaseNetworkable crate = BaseNetworkable.serverEntities.Find(storedData.CrateID);
             if (crate is HackableLockedCrate)
-            {
                 crate?.Kill();
-            }
 
             CleanEvent();
 
@@ -245,10 +235,7 @@ namespace Oxide.Plugins
         private void SpawnCargoPlane()
         {
             CargoPlane cargoplane = GameManager.server.CreateEntity(CargoPrefab) as CargoPlane;
-            if (cargoplane == null)
-            {
-                return;
-            }
+            if (cargoplane == null) return;
 
             cargoplane.InitDropPosition(eventPosition);
             cargoplane.Spawn();
@@ -263,8 +250,8 @@ namespace Oxide.Plugins
             if (crate == null) return;
 
             crate.Spawn();
-            crate.gameObject.AddComponent<ParachuteComponent>();
             crate.StartHacking();
+            crate.gameObject.AddComponent<ParachuteComponent>();
 
             while (crate.inventory.itemList.Count > 0)
             {
@@ -406,7 +393,7 @@ namespace Oxide.Plugins
 
             void Update()
             {
-                if (!npc.GetNavAgent.isOnNavMesh) return;
+                if (!npc.IsNavRunning()) return;
                 if ((npc.GetFact(NPCPlayerApex.Facts.IsAggro)) == 1 && shouldChase) return;
 
                 ShouldRelocate();
@@ -464,8 +451,9 @@ namespace Oxide.Plugins
 
             void OnCollisionEnter(Collision col)
             {
-                if (parachute != null && !parachute.IsDestroyed)
-                    parachute.Kill();
+                if (parachute == null) return;
+                parachute.Kill();
+                parachute = (BaseEntity) null;
             }
         }
         #endregion
@@ -474,9 +462,7 @@ namespace Oxide.Plugins
         private PlayerStatistic GetPlayerStatistics(BasePlayer player)
         {
             if (!storedData.Statistics.ContainsKey(player.userID))
-            {
                 storedData.Statistics.Add(player.userID, new PlayerStatistic(player.displayName));
-            }
 
             return storedData.Statistics[player.userID];
         }
@@ -553,9 +539,7 @@ namespace Oxide.Plugins
                 float posZ = UnityEngine.Random.Range(-TerrainMeta.Size.z / 2, TerrainMeta.Size.z / 2);
 
                 if (FindValidSpawn(new Vector3(posX, HeightToRaycast, posX), 1, out validPos))
-                {
                     return validPos;
-                }
             }
 
             return Vector3.zero;
@@ -587,9 +571,7 @@ namespace Oxide.Plugins
             foreach(MonumentInfo mon in Monuments)
             {
                 if (mon.Bounds.Contains(position))
-                {
                     return true;
-                }
             }
 
             return false;
