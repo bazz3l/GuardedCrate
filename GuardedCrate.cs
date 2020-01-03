@@ -1,33 +1,34 @@
 using System.Collections.Generic;
 using System.Collections;
 using System.Linq;
-using Rust;
+using Oxide.Core.Configuration;
+using Oxide.Game.Rust.Cui;
+using Oxide.Core.Plugins;
+using Oxide.Core;
 using UnityEngine;
 using Facepunch;
-using Oxide.Core;
-using Oxide.Core.Plugins;
-using Oxide.Game.Rust.Cui;
-using Oxide.Core.Configuration;
-using Oxide.Core.Libraries.Covalence;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.0.0")]
+    [Info("Guarded Crate", "Bazz3l", "1.0.1")]
     [Description("Eliminate the scientits to gain high value loot")]
     class GuardedCrate : RustPlugin
     {
         [PluginReference] Plugin Kits;
 
-        #region Vars
-        public const string CratePrefab     = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
-        public const string CargoPrefab     = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
-        public const string ChutePrefab     = "assets/prefabs/misc/parachute/parachute.prefab";
-        public const string MarkerPrefab    = "assets/prefabs/tools/map/genericradiusmarker.prefab";
+        #region Fields
+        public const string CratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
+        public const string CargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
+        public const string ChutePrefab = "assets/prefabs/misc/parachute/parachute.prefab";
+        public const string MarkerPrefab = "assets/prefabs/tools/map/genericradiusmarker.prefab";
         public const string ScientistPrefab = "assets/prefabs/npc/scientist/scientist.prefab";
-        public const int MaxSpawnTries      = 300;
+        public const int MaxSpawnTries = 300;
 
-        public static GuardedCrate ins;
+        public HashSet<NPCPlayerApex> npcGuards = new HashSet<NPCPlayerApex>();
+        public static GuardedCrate plugin;
         private Vector3 eventPosition;
+        private bool eventActive;
+        private uint eventCrate;
 
         private List<MonumentInfo> Monuments
         {
@@ -41,16 +42,16 @@ namespace Oxide.Plugins
         #endregion
 
         #region Config
-        private PluginConfig config;
+        public PluginConfig config;
 
-        class PluginConfig
+        protected override void LoadDefaultConfig() => Config.WriteObject(GetDefaultConfig(), true);
+
+        public class PluginConfig
         {
             public float EventStartTime;
             public int NPCCount;
             public int NPCRadius;
             public float NPCHealth;
-            public int NPCRoamRadius;
-            public float NPCTargetSpeed;
             public float NPCAgressionRange;
             public float NPCVisionRange;
             public float NPCLongRange;
@@ -58,20 +59,17 @@ namespace Oxide.Plugins
             public Dictionary<string, int> LootItems;
         }
 
-        private PluginConfig GetDefaultConfig()
+        public PluginConfig GetDefaultConfig()
         {
             return new PluginConfig
             {
                 EventStartTime    = 30f,
-                NPCCount          = 25,
+                NPCCount          = 20,
                 NPCRadius         = 20,
-                NPCHealth         = 200f,
-                NPCRoamRadius     = 60,
-                NPCTargetSpeed    = 0.5f,
+                NPCHealth         = 100f,
                 NPCAgressionRange = 150f, 
-                NPCVisionRange    = 150f,
-                NPCLongRange      = 60f,
-                NPCMediumRange    = 60f,
+                NPCVisionRange    = 151f,
+                NPCLongRange      = 100f,
                 LootItems         = new Dictionary<string, int> {
                    { "rifle.ak", 1 },
                    { "rifle.bold", 1 },
@@ -93,10 +91,6 @@ namespace Oxide.Plugins
         private class StoredData 
         {
             public Dictionary<ulong, PlayerStatistic> Statistics = new Dictionary<ulong, PlayerStatistic>();
-            public List<uint> Bots  = new List<uint>();
-            public bool EventActive = false;
-            public uint CrateID     = 0;
-            public uint MarkerID    = 0;
         }
 
         private void SaveData() => Interface.Oxide.DataFileSystem.WriteObject(Name, storedData, true);
@@ -116,14 +110,9 @@ namespace Oxide.Plugins
             }, this);
         }
 
-        protected override void LoadDefaultConfig()
-        {
-            Config.WriteObject(GetDefaultConfig(), true);
-        }
-
         private void OnServerInitialized()
         {
-            ins = this;
+            plugin = this;
         }
 
         private void Init()
@@ -133,24 +122,11 @@ namespace Oxide.Plugins
             ResetEvent();
         }
 
-        private void Unload()
-        {
-            ResetEvent();
-        }
-
-        private object OnNpcPlayerTarget(NPCPlayerApex npc, BaseEntity entity)
-        {
-            if (entity is NPCPlayerApex || entity is NPCMurderer)
-            {
-                return false;
-            }
-
-            return null;
-        }
+        private void Unload() => ResetEvent();
 
         private void OnPlayerDie(NPCPlayerApex npc, HitInfo info)
         {
-            if (npc == null || npc.net == null || !storedData.Bots.Contains(npc.net.ID)) return;
+            if (npc == null || !npcGuards.Contains(npc)) return;
 
             BasePlayer player = info?.Initiator as BasePlayer;
             if (player == null) return;
@@ -160,11 +136,11 @@ namespace Oxide.Plugins
 
         private void OnLootEntity(BasePlayer player, StorageContainer entity)
         {
-            if (entity == null || entity.net == null || entity.net.ID != storedData.CrateID || !storedData.EventActive) return;
+            if (entity == null || entity.net.ID != eventCrate || !eventActive) return;
 
             GetPlayerStatistics(player).EventsCompleted++;
 
-            CleanEvent();
+            ResetEvent();
 
             PrintToChat(Lang("EventComplete", null, player.displayName));
         }
@@ -173,154 +149,95 @@ namespace Oxide.Plugins
         #region Core
         private void StartEvent()
         {
+            if (eventActive) return;
+
             Vector3 spawnPos = GetRamdomSpawn();
+
             if (spawnPos == Vector3.zero) return;
-
-            eventPosition = (Vector3)spawnPos;
-
-            timer.Once(config.EventStartTime, () => ActivateEvent());
-
-            PrintToChat(Lang("EventStart", null, GridReference(eventPosition)));
-
-            Interface.Oxide.LogError("[Guarded Crate] Event Started.");
-        }
-
-        public void ActivateEvent()
-        {
-            SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnGuards());
+            eventPosition = spawnPos;
+            eventActive   = true;
 
             SpawnCargoPlane();
-            SpawnMarker();
-            storedData.EventActive = true;
-            SaveData();
+
+            SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnGuards());
 
             PrintToChat(Lang("EventActive", null, GridReference(eventPosition)));
-
-            Interface.Oxide.LogError("[Guarded Crate] Event activated.");
-        }
-
-        private void CleanEvent()
-        {
-            BaseNetworkable marker = BaseNetworkable.serverEntities.Find(storedData.MarkerID);
-            if (marker is MapMarkerGenericRadius)
-                marker?.Kill();
-
-            foreach(uint netID in storedData.Bots)
-            {
-                BaseNetworkable npc = BaseNetworkable.serverEntities.Find(netID);
-                if (npc is NPCPlayerApex)
-                    npc?.Kill();
-            }
-
-            storedData.EventActive = false;
-            storedData.CrateID     = 0;
-            storedData.MarkerID    = 0;
-            storedData.Bots.Clear();
-            SaveData();
 
             Interface.Oxide.LogError("[Guarded Crate] Event ended.");
         }
 
         private void ResetEvent()
         {
-            BaseNetworkable crate = BaseNetworkable.serverEntities.Find(storedData.CrateID);
-            if (crate is HackableLockedCrate)
-                crate?.Kill();
+            foreach(NPCPlayerApex npc in npcGuards)
+            {
+                if (npc == null || npc.IsDestroyed) continue;
+                npc?.KillMessage();
+            }
 
-            CleanEvent();
+            eventActive = false;
 
-            Interface.Oxide.LogError("[Guarded Crate] Event Reset.");
+            npcGuards.Clear();
+
+            SaveData();
+
+            Interface.Oxide.LogError("[Guarded Crate] Event ended.");
         }
 
         private void SpawnCargoPlane()
         {
             CargoPlane cargoplane = GameManager.server.CreateEntity(CargoPrefab) as CargoPlane;
-            if (cargoplane == null) return;
-
             cargoplane.InitDropPosition(eventPosition);
             cargoplane.Spawn();
             cargoplane.gameObject.AddComponent<CargoPlaneComponent>();
-
-            Interface.Oxide.LogError("[Guarded Crate] Cargo plane spawned.");
         }
 
-        private void SpawnCrate(Vector3 pos)
+        private void SpawnCrateMarker(HackableLockedCrate crate)
         {
-            HackableLockedCrate crate = GameManager.server.CreateEntity(CratePrefab, pos) as HackableLockedCrate;
-            if (crate == null) return;
-
-            crate.Spawn();
-            crate.StartHacking();
-            crate.gameObject.AddComponent<ParachuteComponent>();
-
-            while (crate.inventory.itemList.Count > 0)
-            {
-                var item = crate.inventory.itemList[0];
-                item.RemoveFromContainer();
-                item.Remove(0f);
-            }
-
-            foreach (string lootKey in config.LootItems.Keys)
-            {
-                Item item = ItemManager.CreateByName(lootKey, config.LootItems[lootKey]);
-                if (item != null)
-                    item.MoveToContainer(crate.inventory);
-            }
-
-            storedData.CrateID = crate.net.ID;
-            SaveData();
-        }
-
-        private void SpawnMarker()
-        {
-            MapMarkerGenericRadius marker = GameManager.server.CreateEntity(MarkerPrefab, eventPosition) as MapMarkerGenericRadius;
-            if (marker == null) return;
-
+            MapMarkerGenericRadius marker = GameManager.server.CreateEntity(MarkerPrefab, crate.transform.position, crate.transform.rotation) as MapMarkerGenericRadius;
             marker.alpha  = 0.8f;
             marker.color1 = RGBColorConverter(240, 12, 12);
             marker.color2 = RGBColorConverter(255, 255, 255);
             marker.radius = 0.6f;
             marker.Spawn();
+            marker.SetParent(crate);
+            marker.transform.localPosition = new Vector3(0f,0f,0f);
             marker.SendUpdate();
+        }
 
-            storedData.MarkerID = marker.net.ID;
+        private void SpawnCrate(Vector3 position)
+        {
+            HackableLockedCrate crate = GameManager.server.CreateEntity(CratePrefab, position) as HackableLockedCrate;
+            crate.Spawn();
+            crate.StartHacking();
+            crate.gameObject.AddComponent<ParachuteComponent>();
 
-            Interface.Oxide.LogError("[Guarded Crate] Marker spawned.");
+            SpawnCrateMarker(crate);
+
+            eventCrate = crate.net.ID;
         }
 
         private void SpawnGuard(Vector3 position, float health = 150f, bool shouldChase = false)
         {
             NPCPlayerApex npc = GameManager.server.CreateEntity(ScientistPrefab, position) as NPCPlayerApex;
-            if (npc == null) return;
-
-            npc._health    = health;
-            npc._maxHealth = npc._health;
             npc.Spawn();
             npc.gameObject.AddComponent<GuardComponent>().shouldChase = shouldChase;
-            npc.inventory.Strip();
 
-            Interface.Oxide.CallHook("GiveKit", npc, "guard");
-            
-            if (!storedData.Bots.Contains(npc.net.ID))
-            {
-                storedData.Bots.Add(npc.net.ID);
-                SaveData();
-            }
+            npcGuards.Add(npc);
         }
 
         IEnumerator SpawnGuards()
         {
-            yield return new WaitForSeconds(0.5f);
+            yield return new WaitForSeconds(0.75f);
 
             for (int i = 0; i < config.NPCCount; i++)
             {
-                Vector3 validPos;
+                Vector3 pos;
 
-                if (!FindValidSpawn(eventPosition + (UnityEngine.Random.onUnitSphere * config.NPCRadius), 1, out validPos)) continue;
+                if (!FindValidSpawn(eventPosition + (UnityEngine.Random.onUnitSphere * config.NPCRadius), 1, out pos)) continue;
 
-                SpawnGuard(validPos, config.NPCHealth, (i % 2 == 0) ? true : false);
+                SpawnGuard(pos, config.NPCHealth, (i % 2 == 0) ? true : false);
 
-                yield return new WaitForSeconds(0.5f);
+                yield return new WaitForSeconds(0.75f);
             }
 
             yield break;
@@ -328,17 +245,18 @@ namespace Oxide.Plugins
         #endregion
 
         #region Scripts
-        public class CargoPlaneComponent : MonoBehaviour
+        class CargoPlaneComponent : MonoBehaviour
         {
-            public CargoPlane plane;
-            public bool dropped = false;
+            private CargoPlane plane;
+            private bool dropped;
 
-            void Start()
+            void Awake()
             {
                 plane = GetComponent<CargoPlane>();
                 if (plane == null)
                 {
                     Destroy(this);
+
                     return;
                 }
 
@@ -347,98 +265,106 @@ namespace Oxide.Plugins
 
             void Update()
             {
+                if (plane == null) return;
+
                 plane.secondsTaken += Time.deltaTime;
 
                 if (!dropped && (double) Mathf.InverseLerp(0.0f, plane.secondsToTake, plane.secondsTaken) >= 0.5)
                 {
                     dropped = true;
 
-                    ins.SpawnCrate(plane.transform.position);
+                    plugin.SpawnCrate(plane.transform.position);
                 }
             }
         }
 
-        public class GuardComponent : FacepunchBehaviour
+        class GuardComponent : FacepunchBehaviour
         {
-            public NPCPlayerApex npc;
-            public Vector3 spawnPoint;
-            public bool shouldChase;            
-            public bool goingHome;
-            public int roamRadius;
+            private NPCPlayerApex npc;
+            private int spawnRoamRadius;
+            private Vector3 spawnPoint;
+            public bool shouldChase; 
+            private bool goingBack;
 
-            void Start()
+            void Awake()
             {
                 npc = GetComponent<NPCPlayerApex>();
                 if (npc == null)
                 {
                     Destroy(this);
+
                     return;
                 }
 
+                spawnRoamRadius = UnityEngine.Random.Range(5, 50);
+                spawnPoint      = transform.position;
+
                 npc.RadioEffect           = new GameObjectRef();
                 npc.DeathEffect           = new GameObjectRef();
-                npc.Stats.AggressionRange = ins.config.NPCAgressionRange;
-                npc.Stats.VisionRange     = ins.config.NPCVisionRange;
-                npc.Stats.LongRange       = ins.config.NPCLongRange;
-                npc.Stats.MediumRange     = ins.config.NPCMediumRange;
+                npc.Stats.AggressionRange = plugin.config.NPCAgressionRange;
+                npc.Stats.VisionRange     = plugin.config.NPCVisionRange;
+                npc.Stats.LongRange       = plugin.config.NPCLongRange;
                 npc.Stats.DeaggroCooldown = 180f;
-                npc.SpawnPosition         = npc.transform.position;
-                npc.Destination           = npc.transform.position;
+                npc.SpawnPosition         = transform.position;
+                npc.Destination           = transform.position;
                 npc.InitFacts();
-                npc.SendNetworkUpdate();
 
-                spawnPoint = npc.transform.position;
-                roamRadius = UnityEngine.Random.Range(0,50);
+                npc.inventory.Strip();
+
+                Interface.Oxide.CallHook("GiveKit", npc, "guard");
             }
 
             void Update()
             {
-                if (!npc.IsNavRunning()) return;
-                if ((npc.GetFact(NPCPlayerApex.Facts.IsAggro)) == 1 && shouldChase) return;
+                if (npc == null || !npc.IsNavRunning()) return;
+                if ((npc.GetFact(NPCPlayerApex.Facts.IsAggro) == (byte) 1) && (CurrentDistance() <= 80) && shouldChase) return;
 
                 ShouldRelocate();
             }
 
             void ShouldRelocate()
             {
-                float distance = Vector3.Distance(npc.transform.position, spawnPoint);
-                if (!goingHome && distance >= roamRadius)
+                float distance = CurrentDistance();
+                if (!goingBack && distance >= spawnRoamRadius)
                 {
-                    goingHome = true;
+                    goingBack = true;
                 }
 
-                if (goingHome && distance >= roamRadius)
+                if (goingBack && distance >= spawnRoamRadius)
                 {
                     npc.CurrentBehaviour = BaseNpc.Behaviour.Wander;
                     npc.SetFact(NPCPlayerApex.Facts.Speed, (byte)NPCPlayerApex.SpeedEnum.Walk, true, true);
-                    npc.TargetSpeed = ins.config.NPCTargetSpeed;
                     npc.GetNavAgent.SetDestination(spawnPoint);
                     npc.Destination = spawnPoint;
                 }
                 else
                 {
-                    goingHome = false;
+                    goingBack = false;
                 }
+            }
+
+            float CurrentDistance()
+            {
+                return Vector3.Distance(transform.position, spawnPoint);
             }
         }
 
-        public class ParachuteComponent : FacepunchBehaviour
+        class ParachuteComponent : FacepunchBehaviour
         {
             public BaseEntity parachute;
             public BaseEntity entity;
 
-            void Start()
+            void Awake()
             {
                 entity = GetComponent<BaseEntity>();
                 if (entity == null)
                 {
                     Destroy(this);
+
                     return;
                 }
 
                 parachute = GameManager.server.CreateEntity(ChutePrefab, entity.transform.position) as BaseEntity;
-                if (parachute == null) return;
-
                 parachute.Spawn();
                 parachute.SetParent(entity);
                 parachute.transform.localPosition = new Vector3(0, 1f, 0);
@@ -446,7 +372,6 @@ namespace Oxide.Plugins
                 Rigidbody rb  = entity.GetComponent<Rigidbody>();
                 rb.useGravity = true;
                 rb.drag       = 1.5f;
-                rb.AddForce(-transform.up * -1f);
             }
 
             void OnCollisionEnter(Collision col)
@@ -485,11 +410,11 @@ namespace Oxide.Plugins
         }
         #endregion
 
-        #region Chat Commands
+        #region Commands
         [ChatCommand("gstart")]
         private void StartCommand(BasePlayer player, string command, string[] args)
         {
-            if (player == null || !player.IsAdmin || storedData.EventActive) return;
+            if (player == null || !player.IsAdmin) return;
 
             StartEvent();
         }
@@ -497,7 +422,7 @@ namespace Oxide.Plugins
         [ChatCommand("gend")]
         private void EndCommand(BasePlayer player, string command, string[] args)
         {
-            if (player == null || !player.IsAdmin || !storedData.EventActive) return;
+            if (player == null || !player.IsAdmin) return;
 
             ResetEvent();
         }
@@ -534,28 +459,28 @@ namespace Oxide.Plugins
         {
             for (int i = 0; i < MaxSpawnTries; i++)
             {
-                Vector3 validPos;
+                Vector3 pos;
                 float posX = UnityEngine.Random.Range(-TerrainMeta.Size.x / 2, TerrainMeta.Size.x / 2);
                 float posZ = UnityEngine.Random.Range(-TerrainMeta.Size.z / 2, TerrainMeta.Size.z / 2);
 
-                if (FindValidSpawn(new Vector3(posX, HeightToRaycast, posX), 1, out validPos))
-                    return validPos;
+                if (FindValidSpawn(new Vector3(posX, HeightToRaycast, posX), 1, out pos))
+                    return pos;
             }
 
             return Vector3.zero;
         }
 
-        private bool FindValidSpawn(Vector3 pos, float range, out Vector3 foundPoint)
+        private bool FindValidSpawn(Vector3 position, float range, out Vector3 foundPoint)
         {
             for (int i = 0; i < 50; i++)
             {
                 RaycastHit hit;
-                if (Physics.Raycast(new Vector3(pos.x, pos.y, pos.z), Vector3.down, out hit, Mathf.Infinity, LayerMask.GetMask("Terrain", "World", "Default")))
+                if (Physics.Raycast(position, Vector3.down, out hit, Mathf.Infinity, LayerMask.GetMask("Terrain", "World", "Default")))
                 {
-                    Vector3 hitPos = hit.point;
-                    if (IsMonument(hitPos) || WaterLevel.Test(hitPos)) continue;
+                    Vector3 point = hit.point;
+                    if (IsMonument(point) || WaterLevel.Test(point)) continue;
 
-                    foundPoint = hitPos;
+                    foundPoint = point;
 
                     return true;
                 }
