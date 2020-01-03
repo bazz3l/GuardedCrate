@@ -10,7 +10,7 @@ using Facepunch;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.0.2")]
+    [Info("Guarded Crate", "Bazz3l", "1.0.3")]
     [Description("Eliminate the scientits to gain high value loot")]
     class GuardedCrate : RustPlugin
     {
@@ -66,7 +66,7 @@ namespace Oxide.Plugins
             {
                 EventStartTime       = 30f,
                 GuardMaxSpawn        = 20,
-                GuardMaxRoam         = 20,
+                GuardMaxRoam         = 60,
                 GuardAggressionRange = 101f,
                 GuardVisionRange     = 102f,
                 GuardDeaggroRange    = 104f,
@@ -218,11 +218,11 @@ namespace Oxide.Plugins
             eventCrate = crate.net.ID;
         }
 
-        private void SpawnGuard(Vector3 position, bool shouldChase = false)
+        private void SpawnGuard(Vector3 position)
         {
             NPCPlayerApex npc = GameManager.server.CreateEntity(ScientistPrefab, position) as NPCPlayerApex;
             npc.Spawn();
-            npc.gameObject.AddComponent<GuardComponent>().shouldChase = shouldChase;
+            npc.gameObject.AddComponent<GuardComponent>();
 
             npcGuards.Add(npc);
         }
@@ -234,10 +234,9 @@ namespace Oxide.Plugins
             for (int i = 0; i < config.GuardMaxSpawn; i++)
             {
                 Vector3 pos;
-
                 if (!FindValidSpawn(eventPosition + (UnityEngine.Random.onUnitSphere * config.GuardMaxRoam), 1, out pos)) continue;
 
-                SpawnGuard(pos, (i % 2 == 0) ? true : false);
+                SpawnGuard(pos);
 
                 yield return new WaitForSeconds(0.75f);
             }
@@ -285,7 +284,6 @@ namespace Oxide.Plugins
             private NPCPlayerApex npc;
             private int spawnRoamRadius;
             private Vector3 spawnPoint;
-            public bool shouldChase; 
             private bool goingBack;
 
             void Awake()
@@ -319,17 +317,16 @@ namespace Oxide.Plugins
                 Interface.Oxide.CallHook("GiveKit", npc, plugin.config.GuardKit);
             }
 
-            void Update()
+            private void FixedUpdate()
             {
                 if (npc == null || !npc.IsNavRunning()) return;
-                if (shouldChase&& (CurrentDistance() <= plugin.config.GuardMaxRoam) && (npc.GetFact(NPCPlayerApex.Facts.IsAggro) == (byte) 1)) return;
 
                 ShouldRelocate();
             }
 
             void ShouldRelocate()
             {
-                float distance = CurrentDistance();
+                float distance = Vector3.Distance(transform.position, spawnPoint);
                 if (!goingBack && distance >= plugin.config.GuardMaxRoam)
                 {
                     goingBack = true;
@@ -337,8 +334,6 @@ namespace Oxide.Plugins
 
                 if (goingBack && distance >= plugin.config.GuardMaxRoam)
                 {
-                    npc.CurrentBehaviour = BaseNpc.Behaviour.Wander;
-                    npc.SetFact(NPCPlayerApex.Facts.Speed, (byte)NPCPlayerApex.SpeedEnum.Walk, true, true);
                     npc.GetNavAgent.SetDestination(spawnPoint);
                     npc.Destination = spawnPoint;
                 }
@@ -346,11 +341,6 @@ namespace Oxide.Plugins
                 {
                     goingBack = false;
                 }
-            }
-
-            float CurrentDistance()
-            {
-                return Vector3.Distance(transform.position, spawnPoint);
             }
         }
 
