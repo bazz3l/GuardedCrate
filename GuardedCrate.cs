@@ -10,7 +10,7 @@ using Facepunch;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.0.1")]
+    [Info("Guarded Crate", "Bazz3l", "1.0.2")]
     [Description("Eliminate the scientits to gain high value loot")]
     class GuardedCrate : RustPlugin
     {
@@ -49,13 +49,14 @@ namespace Oxide.Plugins
         public class PluginConfig
         {
             public float EventStartTime;
-            public int NPCCount;
-            public int NPCRadius;
-            public float NPCHealth;
-            public float NPCAgressionRange;
-            public float NPCVisionRange;
-            public float NPCLongRange;
-            public float NPCMediumRange;
+            public int GuardMaxSpawn;
+            public int GuardMaxRoam;
+            public float GuardAggressionRange;
+            public float GuardAgressionRange;
+            public float GuardDeaggroRange;
+            public float GuardVisionRange;
+            public float GuardLongRange;
+            public string GuardKit;
             public Dictionary<string, int> LootItems;
         }
 
@@ -63,14 +64,15 @@ namespace Oxide.Plugins
         {
             return new PluginConfig
             {
-                EventStartTime    = 30f,
-                NPCCount          = 20,
-                NPCRadius         = 20,
-                NPCHealth         = 100f,
-                NPCAgressionRange = 150f, 
-                NPCVisionRange    = 151f,
-                NPCLongRange      = 100f,
-                LootItems         = new Dictionary<string, int> {
+                EventStartTime       = 30f,
+                GuardMaxSpawn        = 20,
+                GuardMaxRoam         = 20,
+                GuardAggressionRange = 101f,
+                GuardVisionRange     = 102f,
+                GuardDeaggroRange    = 104f,
+                GuardLongRange       = 100f,
+                GuardKit             = "guard",
+                LootItems            = new Dictionary<string, int> {
                    { "rifle.ak", 1 },
                    { "rifle.bold", 1 },
                    { "ammo.rifle", 1000 },
@@ -216,7 +218,7 @@ namespace Oxide.Plugins
             eventCrate = crate.net.ID;
         }
 
-        private void SpawnGuard(Vector3 position, float health = 150f, bool shouldChase = false)
+        private void SpawnGuard(Vector3 position, bool shouldChase = false)
         {
             NPCPlayerApex npc = GameManager.server.CreateEntity(ScientistPrefab, position) as NPCPlayerApex;
             npc.Spawn();
@@ -229,13 +231,13 @@ namespace Oxide.Plugins
         {
             yield return new WaitForSeconds(0.75f);
 
-            for (int i = 0; i < config.NPCCount; i++)
+            for (int i = 0; i < config.GuardMaxSpawn; i++)
             {
                 Vector3 pos;
 
-                if (!FindValidSpawn(eventPosition + (UnityEngine.Random.onUnitSphere * config.NPCRadius), 1, out pos)) continue;
+                if (!FindValidSpawn(eventPosition + (UnityEngine.Random.onUnitSphere * config.GuardMaxRoam), 1, out pos)) continue;
 
-                SpawnGuard(pos, config.NPCHealth, (i % 2 == 0) ? true : false);
+                SpawnGuard(pos, (i % 2 == 0) ? true : false);
 
                 yield return new WaitForSeconds(0.75f);
             }
@@ -296,28 +298,31 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                spawnRoamRadius = UnityEngine.Random.Range(5, 50);
+                spawnRoamRadius = UnityEngine.Random.Range(5, plugin.config.GuardMaxRoam);
                 spawnPoint      = transform.position;
 
                 npc.RadioEffect           = new GameObjectRef();
                 npc.DeathEffect           = new GameObjectRef();
-                npc.Stats.AggressionRange = plugin.config.NPCAgressionRange;
-                npc.Stats.VisionRange     = plugin.config.NPCVisionRange;
-                npc.Stats.LongRange       = plugin.config.NPCLongRange;
-                npc.Stats.DeaggroCooldown = 180f;
-                npc.SpawnPosition         = transform.position;
-                npc.Destination           = transform.position;
+                npc.SpawnPosition         = spawnPoint;
+                npc.Destination           = spawnPoint;
+                npc.Stats.AggressionRange = plugin.config.GuardAggressionRange;
+                npc.Stats.VisionRange     = plugin.config.GuardVisionRange;
+                npc.Stats.DeaggroRange    = plugin.config.GuardDeaggroRange;
+                npc.Stats.LongRange       = plugin.config.GuardLongRange;
+                npc.Stats.Hostility       = 1f;
+                npc.Stats.Defensiveness   = 1f;
+                npc.Stats.OnlyAggroMarkedTargets = false;
                 npc.InitFacts();
 
                 npc.inventory.Strip();
 
-                Interface.Oxide.CallHook("GiveKit", npc, "guard");
+                Interface.Oxide.CallHook("GiveKit", npc, plugin.config.GuardKit);
             }
 
             void Update()
             {
                 if (npc == null || !npc.IsNavRunning()) return;
-                if ((npc.GetFact(NPCPlayerApex.Facts.IsAggro) == (byte) 1) && (CurrentDistance() <= 80) && shouldChase) return;
+                if (shouldChase&& (CurrentDistance() <= plugin.config.GuardMaxRoam) && (npc.GetFact(NPCPlayerApex.Facts.IsAggro) == (byte) 1)) return;
 
                 ShouldRelocate();
             }
@@ -325,12 +330,12 @@ namespace Oxide.Plugins
             void ShouldRelocate()
             {
                 float distance = CurrentDistance();
-                if (!goingBack && distance >= spawnRoamRadius)
+                if (!goingBack && distance >= plugin.config.GuardMaxRoam)
                 {
                     goingBack = true;
                 }
 
-                if (goingBack && distance >= spawnRoamRadius)
+                if (goingBack && distance >= plugin.config.GuardMaxRoam)
                 {
                     npc.CurrentBehaviour = BaseNpc.Behaviour.Wander;
                     npc.SetFact(NPCPlayerApex.Facts.Speed, (byte)NPCPlayerApex.SpeedEnum.Walk, true, true);
