@@ -10,7 +10,7 @@ using Facepunch;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.0.4")]
+    [Info("Guarded Crate", "Bazz3l", "1.0.5")]
     [Description("Spawns a crate guarded buy scientists.")]
     class GuardedCrate : CovalencePlugin
     {
@@ -28,6 +28,7 @@ namespace Oxide.Plugins
         Timer eventRepeatTimer;
         Timer eventTimer;
         bool eventActive;
+        bool wasLooted;
         Vector3 eventPosition;
 
         static MapMarkerGenericRadius marker;
@@ -96,6 +97,18 @@ namespace Oxide.Plugins
         }
 
         void Unload() => StopEvent();
+
+        void OnLootEntity(BasePlayer player, BaseEntity entity)
+        {
+            if (entity == null || crate == null || entity.net.ID != crate.net.ID)
+            {
+                return;
+            }
+
+            wasLooted = true;
+
+            ResetEvent();
+        }
         #endregion
 
         #region Core
@@ -115,6 +128,8 @@ namespace Oxide.Plugins
             }
 
             eventActive = true;
+
+            wasLooted = false;
 
             SpawnCargoPlane();
 
@@ -143,6 +158,14 @@ namespace Oxide.Plugins
 
             DestroyGuards();
             DestroyTimers();
+
+            if (!wasLooted)
+            {
+                if (crate != null && !crate.IsDestroyed)
+                {
+                    crate?.Kill();
+                }
+            }
 
             if (marker != null && !marker.IsDestroyed)
             {
@@ -230,7 +253,6 @@ namespace Oxide.Plugins
             CargoPlane plane;
             Vector3 lastPosition;
             bool hasDropped;
-
 
             void Awake()
             {
