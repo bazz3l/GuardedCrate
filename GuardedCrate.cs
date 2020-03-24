@@ -1,78 +1,62 @@
 using System.Collections.Generic;
-using System.Collections;
 using System.Linq;
-using Oxide.Core.Configuration;
-using Oxide.Game.Rust.Cui;
-using Oxide.Core.Plugins;
+using System;
 using Oxide.Core;
+using Oxide.Core.Libraries.Covalence;
+using Rust.Ai.HTN;
+using Rust.Ai.HTN.Scientist;
 using UnityEngine;
 using Facepunch;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.0.3")]
-    [Description("Eliminate the scientits to gain high value loot")]
-    class GuardedCrate : RustPlugin
+    [Info("Guarded Crate", "Bazz3l", "1.0.4")]
+    [Description("Spawns a crate guarded buy scientists.")]
+    class GuardedCrate : CovalencePlugin
     {
-        [PluginReference] Plugin Kits;
-
         #region Fields
-        public const string CratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
-        public const string CargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
-        public const string ChutePrefab = "assets/prefabs/misc/parachute/parachute.prefab";
-        public const string MarkerPrefab = "assets/prefabs/tools/map/genericradiusmarker.prefab";
-        public const string ScientistPrefab = "assets/prefabs/npc/scientist/scientist.prefab";
-        public const int MaxSpawnTries = 300;
+        static string cratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
+        static string cargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
+        static string markerPrefab = "assets/prefabs/tools/map/genericradiusmarker.prefab";
+        static string chutePrefab = "assets/prefabs/misc/parachute/parachute.prefab";    
+        static string npcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
 
-        public HashSet<NPCPlayerApex> npcGuards = new HashSet<NPCPlayerApex>();
-        public static GuardedCrate plugin;
-        private Vector3 eventPosition;
-        private bool eventActive;
-        private uint eventCrate;
+        readonly int layerMask = LayerMask.GetMask("Terrain", "World", "Construction", "Deployed");
+        readonly int worldMask = LayerMask.GetMask("World");
 
-        private List<MonumentInfo> Monuments
+        HashSet<HTNPlayer> guards = new HashSet<HTNPlayer>();
+        Timer eventRepeatTimer;
+        Timer eventTimer;
+        bool eventActive;
+        Vector3 eventPosition;
+
+        static MapMarkerGenericRadius marker;
+        static BaseEntity crate;
+
+        static PluginConfig config;
+
+        List<MonumentInfo> monuments
         {
             get { return TerrainMeta.Path.Monuments; }
         }
 
-        private float HeightToRaycast
+        float heightToRaycast
         {
             get { return TerrainMeta.HighestPoint.y + 250f; }
         }
         #endregion
 
         #region Config
-        public PluginConfig config;
 
-        protected override void LoadDefaultConfig() => Config.WriteObject(GetDefaultConfig(), true);
-
-        public class PluginConfig
-        {
-            public float EventStartTime;
-            public int GuardMaxSpawn;
-            public int GuardMaxRoam;
-            public float GuardAggressionRange;
-            public float GuardAgressionRange;
-            public float GuardDeaggroRange;
-            public float GuardVisionRange;
-            public float GuardLongRange;
-            public string GuardKit;
-            public Dictionary<string, int> LootItems;
-        }
-
-        public PluginConfig GetDefaultConfig()
+        PluginConfig GetDefaultConfig()
         {
             return new PluginConfig
             {
-                EventStartTime       = 30f,
-                GuardMaxSpawn        = 20,
-                GuardMaxRoam         = 60,
-                GuardAggressionRange = 101f,
-                GuardVisionRange     = 102f,
-                GuardDeaggroRange    = 104f,
-                GuardLongRange       = 100f,
-                GuardKit             = "guard",
-                LootItems            = new Dictionary<string, int> {
+                npcRoam = 50f,
+                npcCount = 15,
+                eventTime = 3600f,
+                eventLength = 720f,
+                lootItems = new Dictionary<string, int> {
                    { "rifle.ak", 1 },
                    { "rifle.bold", 1 },
                    { "ammo.rifle", 1000 },
@@ -85,171 +69,168 @@ namespace Oxide.Plugins
                 }
             };
         }
-        #endregion
 
-        #region Data
-        private StoredData storedData;
-
-        private class StoredData 
+        class PluginConfig
         {
-            public Dictionary<ulong, PlayerStatistic> Statistics = new Dictionary<ulong, PlayerStatistic>();
+            public float npcRoam;
+            public int npcCount;
+            public float eventTime;
+            public float eventLength;
+            public Dictionary<string, int> lootItems;
         }
-
-        private void SaveData() => Interface.Oxide.DataFileSystem.WriteObject(Name, storedData, true);
         #endregion
 
         #region Oxide
-        protected override void LoadDefaultMessages()
+        protected override void LoadDefaultConfig() => Config.WriteObject(GetDefaultConfig(), true);
+
+        void OnServerInitialized()
         {
-            lang.RegisterMessages(new Dictionary<string, string> {
-               ["EventStart"]      = "<color=#DC143C>Guarded Crate Event</color>: starting in 60s at {0}, armed guards stay clear or fight for your life.",
-               ["EventActive"]     = "<color=#DC143C>Guarded Crate Event</color>: is now active in {0}.",
-               ["EventEnded"]      = "<color=#DC143C>Guarded Crate Event</color>: has ended.",
-               ["EventComplete"]   = "<color=#DC143C>Guarded Crate Event</color>: {0}, completed the event.",
-               ["TopPlayers"]      = "<color=#DC143C>Guarded Crate Event</color>: Top Players\n{0}",
-               ["TopItem"]         = "<color=#DC143C>{0}</color>:\nEvents Complete {1}, Guards Killed: {2}.",
-               ["Statistics"]      = "<color=#DC143C>Guarded Crate Event</color>: {0}"
-            }, this);
+            eventRepeatTimer = timer.Repeat(config.eventTime, 0, () => StartEvent());
+
+            StartEvent();
         }
 
-        private void OnServerInitialized()
+        void Init()
         {
-            plugin = this;
+            config = Config.ReadObject<PluginConfig>();
         }
 
-        private void Init()
-        {
-            config     = Config.ReadObject<PluginConfig>();
-            storedData = Interface.Oxide.DataFileSystem.ReadObject<StoredData>(Name);
-            ResetEvent();
-        }
-
-        private void Unload() => ResetEvent();
-
-        private void OnPlayerDie(NPCPlayerApex npc, HitInfo info)
-        {
-            if (npc == null || !npcGuards.Contains(npc)) return;
-
-            BasePlayer player = info?.Initiator as BasePlayer;
-            if (player == null) return;
-
-            GetPlayerStatistics(player).GuardsKilled++;
-        }
-
-        private void OnLootEntity(BasePlayer player, StorageContainer entity)
-        {
-            if (entity == null || entity.net.ID != eventCrate || !eventActive) return;
-
-            GetPlayerStatistics(player).EventsCompleted++;
-
-            ResetEvent();
-
-            PrintToChat(Lang("EventComplete", null, player.displayName));
-        }
+        void Unload() => StopEvent();
         #endregion
- 
+
         #region Core
-        private void StartEvent()
+        void StartEvent()
         {
-            if (eventActive) return;
+            if (eventActive)
+            {
+                return;
+            }
 
-            Vector3 spawnPos = GetRamdomSpawn();
+            eventPosition = RandomLocation();
 
-            if (spawnPos == Vector3.zero) return;
-            eventPosition = spawnPos;
-            eventActive   = true;
+            if (eventPosition == Vector3.zero)
+            {
+                ResetEvent();
+                return;
+            }
+
+            eventActive = true;
 
             SpawnCargoPlane();
 
-            SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnGuards());
+            SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI());
 
-            PrintToChat(Lang("EventActive", null, GridReference(eventPosition)));
+            eventTimer = timer.Once(config.eventLength, () => StopEvent());
 
-            Interface.Oxide.LogError("[Guarded Crate] Event ended.");
+            MessagePlayers(string.Format("<color=#DC143C>Guarded Loot</color>: fight for the high value loot ({0}).", GetGrid(eventPosition)));
         }
 
-        private void ResetEvent()
+        void StopEvent()
         {
-            foreach(NPCPlayerApex npc in npcGuards)
+            if (crate != null && !crate.IsDestroyed)
             {
-                if (npc == null || npc.IsDestroyed) continue;
-                npc?.KillMessage();
+                crate?.Kill();
             }
 
+            ResetEvent();
+
+            MessagePlayers(string.Format("<color=#DC143C>Guarded Loot</color>: event ended."));
+        }
+
+        void ResetEvent()
+        {
             eventActive = false;
 
-            npcGuards.Clear();
+            DestroyGuards();
+            DestroyTimers();
 
-            SaveData();
-
-            Interface.Oxide.LogError("[Guarded Crate] Event ended.");
-        }
-
-        private void SpawnCargoPlane()
-        {
-            CargoPlane cargoplane = GameManager.server.CreateEntity(CargoPrefab) as CargoPlane;
-            cargoplane.InitDropPosition(eventPosition);
-            cargoplane.Spawn();
-            cargoplane.gameObject.AddComponent<CargoPlaneComponent>();
-        }
-
-        private void SpawnCrateMarker(HackableLockedCrate crate)
-        {
-            MapMarkerGenericRadius marker = GameManager.server.CreateEntity(MarkerPrefab, crate.transform.position, crate.transform.rotation) as MapMarkerGenericRadius;
-            marker.alpha  = 0.8f;
-            marker.color1 = RGBColorConverter(240, 12, 12);
-            marker.color2 = RGBColorConverter(255, 255, 255);
-            marker.radius = 0.6f;
-            marker.Spawn();
-            marker.SetParent(crate);
-            marker.transform.localPosition = new Vector3(0f,0f,0f);
-            marker.SendUpdate();
-        }
-
-        private void SpawnCrate(Vector3 position)
-        {
-            HackableLockedCrate crate = GameManager.server.CreateEntity(CratePrefab, position) as HackableLockedCrate;
-            crate.Spawn();
-            crate.StartHacking();
-            crate.gameObject.AddComponent<ParachuteComponent>();
-
-            SpawnCrateMarker(crate);
-
-            eventCrate = crate.net.ID;
-        }
-
-        private void SpawnGuard(Vector3 position)
-        {
-            NPCPlayerApex npc = GameManager.server.CreateEntity(ScientistPrefab, position) as NPCPlayerApex;
-            npc.Spawn();
-            npc.gameObject.AddComponent<GuardComponent>();
-
-            npcGuards.Add(npc);
-        }
-
-        IEnumerator SpawnGuards()
-        {
-            yield return new WaitForSeconds(0.75f);
-
-            for (int i = 0; i < config.GuardMaxSpawn; i++)
+            if (marker != null && !marker.IsDestroyed)
             {
-                Vector3 pos;
-                if (!FindValidSpawn(eventPosition + (UnityEngine.Random.onUnitSphere * config.GuardMaxRoam), 1, out pos)) continue;
-
-                SpawnGuard(pos);
-
-                yield return new WaitForSeconds(0.75f);
+                marker?.Kill();
             }
 
-            yield break;
+            marker = null;
+            crate  = null;
         }
-        #endregion
 
-        #region Scripts
-        class CargoPlaneComponent : MonoBehaviour
+        void DestroyGuards()
         {
-            private CargoPlane plane;
-            private bool dropped;
+            foreach (HTNPlayer npc in guards)
+            {
+                if (npc == null || npc.IsDestroyed)
+                {
+                    continue;
+                }
+
+                npc.Kill();
+            }
+
+            guards.Clear();
+        }
+
+        void DestroyTimers()
+        {
+            if (eventRepeatTimer != null && !eventRepeatTimer.Destroyed)
+            {
+                eventRepeatTimer.Destroy();
+            }
+
+            if (eventTimer != null && !eventTimer.Destroyed)
+            {
+                eventTimer.Destroy();
+            }
+
+            eventRepeatTimer = timer.Repeat(config.eventTime, 0, () => StartEvent());
+        }
+
+        IEnumerator<object> SpawnAI() 
+        {
+            for (int i = 0; i < config.npcCount; i++)
+            {
+                Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, eventPosition);
+                Vector3 location = RandomCircle(eventPosition, 5f, (360 / config.npcCount * i));
+
+                Vector3 position;
+                if (!IsValidLocation(location, out position)) continue;
+
+                SpawnNPC(position, rotation);
+
+                yield return new WaitForSeconds(0.5f);
+            }
+
+            yield return null;
+        }
+
+        void SpawnNPC(Vector3 position, Quaternion rotation)
+        {
+            HTNPlayer npc = GameManager.server.CreateEntity(npcPrefab, position, rotation) as HTNPlayer;
+            if (npc == null)
+            {
+                return;
+            }
+
+            npc.enableSaving = false;
+            npc._aiDomain.Movement = HTNDomain.MovementRule.RestrainedMove;
+            npc._aiDomain.MovementRadius = config.npcRoam;
+            npc.Spawn();
+
+            guards.Add(npc);
+        }
+
+        void SpawnCargoPlane()
+        {
+            CargoPlane cargoplane = GameManager.server.CreateEntity(cargoPrefab) as CargoPlane;
+            cargoplane.InitDropPosition(eventPosition);
+            cargoplane.Spawn();
+            cargoplane.gameObject.AddComponent<PlaneComponent>();
+        }
+
+        class PlaneComponent : MonoBehaviour
+        {
+            CargoPlane plane;
+            Vector3 lastPosition;
+            bool hasDropped;
+
 
             void Awake()
             {
@@ -257,7 +238,6 @@ namespace Oxide.Plugins
                 if (plane == null)
                 {
                     Destroy(this);
-
                     return;
                 }
 
@@ -266,81 +246,55 @@ namespace Oxide.Plugins
 
             void Update()
             {
-                if (plane == null) return;
-
-                plane.secondsTaken += Time.deltaTime;
-
-                if (!dropped && (double) Mathf.InverseLerp(0.0f, plane.secondsToTake, plane.secondsTaken) >= 0.5)
-                {
-                    dropped = true;
-
-                    plugin.SpawnCrate(plane.transform.position);
-                }
-            }
-        }
-
-        class GuardComponent : FacepunchBehaviour
-        {
-            private NPCPlayerApex npc;
-            private int spawnRoamRadius;
-            private Vector3 spawnPoint;
-            private bool goingBack;
-
-            void Awake()
-            {
-                npc = GetComponent<NPCPlayerApex>();
-                if (npc == null)
+                if (plane == null || plane.IsDestroyed)
                 {
                     Destroy(this);
-
                     return;
                 }
 
-                spawnRoamRadius = UnityEngine.Random.Range(5, plugin.config.GuardMaxRoam);
-                spawnPoint      = transform.position;
+                lastPosition = transform.position;
 
-                npc.RadioEffect           = new GameObjectRef();
-                npc.DeathEffect           = new GameObjectRef();
-                npc.SpawnPosition         = spawnPoint;
-                npc.Destination           = spawnPoint;
-                npc.Stats.AggressionRange = plugin.config.GuardAggressionRange;
-                npc.Stats.VisionRange     = plugin.config.GuardVisionRange;
-                npc.Stats.DeaggroRange    = plugin.config.GuardDeaggroRange;
-                npc.Stats.LongRange       = plugin.config.GuardLongRange;
-                npc.Stats.Hostility       = 1f;
-                npc.Stats.Defensiveness   = 1f;
-                npc.Stats.OnlyAggroMarkedTargets = false;
-                npc.InitFacts();
+                float distance = Mathf.InverseLerp(0.0f, plane.secondsToTake, plane.secondsTaken);
+                if (!hasDropped && (double) distance >= 0.5)
+                {
+                    hasDropped = true;
 
-                npc.inventory.Strip();
-
-                Interface.Oxide.CallHook("GiveKit", npc, plugin.config.GuardKit);
+                    SpawnCreate(lastPosition);
+                }
             }
 
-            private void FixedUpdate()
+            void SpawnCreate(Vector3 position)
             {
-                if (npc == null || !npc.IsNavRunning()) return;
+                crate = GameManager.server.CreateEntity(cratePrefab, position, Quaternion.identity);
+                if (crate == null)
+                {
+                    return;
+                }
+                
+                crate.enableSaving = false;
+                crate.Spawn();
+                crate.gameObject.AddComponent<ParachuteComponent>();
 
-                ShouldRelocate();
+                SpawnCrateMarker(crate);            
             }
 
-            void ShouldRelocate()
+            void SpawnCrateMarker(BaseEntity crate)
             {
-                float distance = Vector3.Distance(transform.position, spawnPoint);
-                if (!goingBack && distance >= plugin.config.GuardMaxRoam)
+                marker = GameManager.server.CreateEntity(markerPrefab, crate.transform.position, crate.transform.rotation) as MapMarkerGenericRadius;
+                if (marker == null)
                 {
-                    goingBack = true;
+                    return;
                 }
 
-                if (goingBack && distance >= plugin.config.GuardMaxRoam)
-                {
-                    npc.GetNavAgent.SetDestination(spawnPoint);
-                    npc.Destination = spawnPoint;
-                }
-                else
-                {
-                    goingBack = false;
-                }
+                marker.enableSaving = false;
+                marker.alpha = 0.8f;
+                marker.color1 = RGBColorConverter(240, 12, 12);
+                marker.color2 = RGBColorConverter(255, 255, 255);
+                marker.radius = 0.6f;
+                marker.Spawn();
+                marker.SetParent(crate);
+                marker.transform.localPosition = new Vector3(0f,0f,0f);
+                marker.SendUpdate();
             }
         }
 
@@ -355,169 +309,115 @@ namespace Oxide.Plugins
                 if (entity == null)
                 {
                     Destroy(this);
-
                     return;
                 }
 
-                parachute = GameManager.server.CreateEntity(ChutePrefab, entity.transform.position) as BaseEntity;
+                parachute = GameManager.server.CreateEntity(chutePrefab, entity.transform.position) as BaseEntity;
+                if (parachute == null)
+                {
+                    return;
+                }
+
+                parachute.enableSaving = false;
                 parachute.Spawn();
                 parachute.SetParent(entity);
-                parachute.transform.localPosition = new Vector3(0, 1f, 0);
+                parachute.transform.localPosition = new Vector3(0,1f,0);
 
                 Rigidbody rb  = entity.GetComponent<Rigidbody>();
                 rb.useGravity = true;
-                rb.drag       = 1.5f;
+                rb.drag       = 2.5f;
             }
 
             void OnCollisionEnter(Collision col)
             {
-                if (parachute == null) return;
+                if (parachute == null || parachute.IsDestroyed) return;
+
                 parachute.Kill();
-                parachute = (BaseEntity) null;
+
+                Destroy(this);
             }
-        }
-        #endregion
-
-        #region Statistics
-        private PlayerStatistic GetPlayerStatistics(BasePlayer player)
-        {
-            if (!storedData.Statistics.ContainsKey(player.userID))
-                storedData.Statistics.Add(player.userID, new PlayerStatistic(player.displayName));
-
-            return storedData.Statistics[player.userID];
-        }
-
-        private class PlayerStatistic
-        {
-            public string PlayerName;
-            public int GuardsKilled    = 0;
-            public int EventsCompleted = 0;
-
-            public PlayerStatistic(string playerName)
-            {
-                PlayerName = playerName;
-            }
-
-            public override string ToString()
-            {
-                return string.Format("Events Completed: {0}, Guards Killed: {1}", EventsCompleted, GuardsKilled);
-            }
-        }
-        #endregion
-
-        #region Commands
-        [ChatCommand("gstart")]
-        private void StartCommand(BasePlayer player, string command, string[] args)
-        {
-            if (player == null || !player.IsAdmin) return;
-
-            StartEvent();
-        }
-
-        [ChatCommand("gend")]
-        private void EndCommand(BasePlayer player, string command, string[] args)
-        {
-            if (player == null || !player.IsAdmin) return;
-
-            ResetEvent();
-        }
-
-        [ChatCommand("gstats")]
-        private void StatsCommand(BasePlayer player, string command, string[] args)
-        {
-            if (player == null) return;
-
-            player.ChatMessage(Lang("Statistics", player.UserIDString, GetPlayerStatistics(player).ToString()));
-        }
-
-        [ChatCommand("gtop")]
-        private void TopCommand(BasePlayer player, string command, string[] args)
-        {
-            if (player == null) return;
-
-            List<string> TopPlayers = storedData.Statistics
-            .OrderByDescending(x => x.Value.EventsCompleted)
-            .Select(s => Lang("TopItem", player.UserIDString, s.Value.PlayerName, s.Value.EventsCompleted, s.Value.GuardsKilled))
-            .Take(10)
-            .ToList();
-
-            player.ChatMessage(Lang("TopPlayers", player.UserIDString, string.Join("\n", TopPlayers)));
         }
         #endregion
 
         #region Helpers
-        private string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
+        static Color RGBColorConverter(int r, int g, int b) => new Color(r/255f, g/255f, b/255f);
 
-        private Color RGBColorConverter(int r, int g, int b) => new Color(r/255f, g/255f, b/255f);        
-
-        private Vector3 GetRamdomSpawn()
+        Vector3 RandomCircle(Vector3 center, float radius, float angle)
         {
-            for (int i = 0; i < MaxSpawnTries; i++)
-            {
-                Vector3 pos;
-                float posX = UnityEngine.Random.Range(-TerrainMeta.Size.x / 2, TerrainMeta.Size.x / 2);
-                float posZ = UnityEngine.Random.Range(-TerrainMeta.Size.z / 2, TerrainMeta.Size.z / 2);
+            Vector3 pos = center;
+            pos.x += radius * Mathf.Sin(angle * Mathf.Deg2Rad);
+            pos.z += radius * Mathf.Cos(angle * Mathf.Deg2Rad);
+            return pos;
+        }
 
-                if (FindValidSpawn(new Vector3(posX, HeightToRaycast, posX), 1, out pos))
-                    return pos;
+        Vector3 RandomLocation(int maxTries = 100)
+        {
+            float wordSize = ConVar.Server.worldsize / 2;
+
+            for (int i = 0; i < maxTries; i++)
+            {
+                Vector3 location = new Vector3(Core.Random.Range(-wordSize, wordSize), 200f, Core.Random.Range(-wordSize, wordSize));
+
+                Vector3 position;
+                if (!IsValidLocation(location, out position)) continue;
+
+                return position;
             }
 
             return Vector3.zero;
         }
 
-        private bool FindValidSpawn(Vector3 position, float range, out Vector3 foundPoint)
+        bool IsValidLocation(Vector3 location, out Vector3 position)
         {
-            for (int i = 0; i < 50; i++)
+            RaycastHit hit;
+            if (Physics.Raycast(location + (Vector3.up * 250f), Vector3.down, out hit, Mathf.Infinity, layerMask))
             {
-                RaycastHit hit;
-                if (Physics.Raycast(position, Vector3.down, out hit, Mathf.Infinity, LayerMask.GetMask("Terrain", "World", "Default")))
+                Vector3 point = hit.point;
+
+                if (!IsMonument(point) && !WaterLevel.Test(point))
                 {
-                    Vector3 point = hit.point;
-                    if (IsMonument(point) || WaterLevel.Test(point)) continue;
+                    position = point;
 
-                    foundPoint = point;
-
-                    return true;
+                    return true;                    
                 }
             }
 
-            foundPoint = Vector3.zero;
+            position = Vector3.zero;
 
             return false;
         }
 
-        private bool IsMonument(Vector3 position)
+        bool IsMonument(Vector3 position)
         {
-            foreach(MonumentInfo mon in Monuments)
+            foreach(MonumentInfo mon in monuments)
             {
                 if (mon.Bounds.Contains(position))
+                {
                     return true;
+                }
             }
 
             return false;
         }
 
-        public string GridReference(Vector3 position) // Credit: Jake_Rich
+        // Thanks to yetzt
+		string GetGrid(Vector3 position)
         {
-            Vector2 roundedPos = new Vector2(World.Size / 2 + position.x, World.Size / 2 - position.z);
-            string grid = $"{NumberToLetter(Mathf.FloorToInt(roundedPos.x / 145))}{Mathf.FloorToInt(roundedPos.y / 145)}";
-            return grid;
-        }
+			char letter = 'A';
+			float x = Mathf.Floor((position.x + (ConVar.Server.worldsize / 2)) / 146.3f) % 26;
+			float z = (Mathf.Floor(ConVar.Server.worldsize / 146.3f) - 1) - Mathf.Floor((position.z + (ConVar.Server.worldsize / 2)) / 146.3f);
+			letter = (char)(((int)letter) + x);
+			return $"{letter}{z}";
+		}
 
-        public string NumberToLetter(int num) // Credit: Jake_Rich
+        void MessagePlayers(string message)
         {
-            int num2 = Mathf.FloorToInt((float)(num / 26));
-            int num3 = num % 26;
-            string text = string.Empty;
-            if (num2 > 0)
+            foreach (IPlayer player in covalence.Players.Connected)
             {
-                for (int i = 0; i < num2; i++)
-                {
-                    text += System.Convert.ToChar(65 + i);
-                }
-            }
+                if (player == null) continue;
 
-            return text + System.Convert.ToChar(65 + num3).ToString();
+                player.Message(message);
+            }
         }
         #endregion
     }
