@@ -51,7 +51,7 @@ namespace Oxide.Plugins
             {
                 eventTime = 3600f,
                 eventLength = 720f,
-                npcRoam = 50f,
+                npcRoam = 80f,
                 npcCount = 15,
                 lootItems = new List<LootItem> {
                    new LootItem("rifle.ak", 1),
@@ -224,7 +224,7 @@ namespace Oxide.Plugins
         {
             for (int i = 0; i < config.npcCount; i++)
             {
-                Vector3 location = RandomCircle(eventPosition, 5f, (360 / config.npcCount * i));
+                Vector3 location = RandomCircle(eventPosition, 10f, (360 / config.npcCount * i));
                 
                 Vector3 position;
 
@@ -271,12 +271,12 @@ namespace Oxide.Plugins
 
             crate.inventory.itemList.Clear();
 
-            SpawnCrateMarker(crate);
+            SpawnCrateMarker();
 
-            NextFrame(() => PopulateLoot(crate));
+            NextFrame(() => PopulateLoot());
         }
 
-        void PopulateLoot(HackableLockedCrate crate)
+        void PopulateLoot()
         {
             if (config.lootItems.Count < 6)
             {
@@ -305,7 +305,7 @@ namespace Oxide.Plugins
             }
         }
 
-        void SpawnCrateMarker(BaseEntity crate)
+        void SpawnCrateMarker()
         {
             marker = GameManager.server.CreateEntity(markerPrefab, crate.transform.position, crate.transform.rotation) as MapMarkerGenericRadius;
             if (marker == null)
@@ -423,6 +423,8 @@ namespace Oxide.Plugins
         #region Helpers
         static Color ColorConverter(int r, int g, int b) => new Color(r/255f, g/255f, b/255f);
 
+        float MapSize() => TerrainMeta.Size.x / 2;
+
         Vector3 RandomCircle(Vector3 center, float radius, float angle)
         {
             Vector3 pos = center;
@@ -433,7 +435,7 @@ namespace Oxide.Plugins
 
         Vector3 RandomLocation(int maxTries = 100)
         {
-            float wordSize = ConVar.Server.worldsize / 2;
+            float wordSize = MapSize() - 600f;
 
             for (int i = 0; i < maxTries; i++)
             {
