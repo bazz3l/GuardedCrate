@@ -5,8 +5,8 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.0.6")]
-    [Description("Spawns a crate guarded buy scientists.")]
+    [Info("Guarded Crate", "Bazz3l", "1.0.7")]
+    [Description("Spawns a crate guarded by scientists with custom loot.")]
     class GuardedCrate : CovalencePlugin
     {
         #region Fields
