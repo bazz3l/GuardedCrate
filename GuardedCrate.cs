@@ -1,16 +1,11 @@
-using System.Collections.Generic;
-using System.Linq;
-using System;
-using Oxide.Core;
 using Oxide.Core.Libraries.Covalence;
+using System.Collections.Generic;
 using Rust.Ai.HTN;
-using Rust.Ai.HTN.Scientist;
 using UnityEngine;
-using Facepunch;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.0.5")]
+    [Info("Guarded Crate", "Bazz3l", "1.0.6")]
     [Description("Spawns a crate guarded buy scientists.")]
     class GuardedCrate : CovalencePlugin
     {
@@ -32,9 +27,10 @@ namespace Oxide.Plugins
         Vector3 eventPosition;
 
         static MapMarkerGenericRadius marker;
-        static BaseEntity crate;
+        static HackableLockedCrate crate;
 
         static PluginConfig config;
+        static GuardedCrate plugin;
 
         List<MonumentInfo> monuments
         {
@@ -53,20 +49,29 @@ namespace Oxide.Plugins
         {
             return new PluginConfig
             {
-                npcRoam = 50f,
-                npcCount = 15,
                 eventTime = 3600f,
                 eventLength = 720f,
-                lootItems = new Dictionary<string, int> {
-                   { "rifle.ak", 1 },
-                   { "rifle.bold", 1 },
-                   { "ammo.rifle", 1000 },
-                   { "lmg.m249", 1 },
-                   { "rifle.m39", 1 },
-                   { "rocket.launcher", 1 },
-                   { "ammo.rocket.basic", 8 },
-                   { "explosive.satchel", 6 },
-                   { "explosive.timed", 4 }
+                npcRoam = 50f,
+                npcCount = 15,
+                lootItems = new List<LootItem> {
+                   new LootItem("rifle.ak", 1),
+                   new LootItem("rifle.bold", 1),
+                   new LootItem("ammo.rifle", 1000),
+                   new LootItem("lmg.m249", 1),
+                   new LootItem("rifle.m39", 1),
+                   new LootItem("rocket.launcher", 1),
+                   new LootItem("ammo.rocket.basic", 8),
+                   new LootItem("explosive.satchel", 6),
+                   new LootItem("explosive.timed", 4),
+                   new LootItem("gunpowder", 1000),
+                   new LootItem("metal.refined", 500),
+                   new LootItem("leather", 600),
+                   new LootItem("cloth", 600),
+                   new LootItem("scrap", 1000),
+                   new LootItem("sulfur", 5000),
+                   new LootItem("stones", 10000),
+                   new LootItem("lowgradefuel", 2000),
+                   new LootItem("metal.fragments", 5000)
                 }
             };
         }
@@ -77,7 +82,19 @@ namespace Oxide.Plugins
             public int npcCount;
             public float eventTime;
             public float eventLength;
-            public Dictionary<string, int> lootItems;
+            public List<LootItem> lootItems;
+        }
+
+        class LootItem
+        {
+            public string shortname;
+            public int amount;
+
+            public LootItem(string Shortname, int Amount)
+            {
+                shortname = Shortname;
+                amount    = Amount;
+            }
         }
         #endregion
 
@@ -93,6 +110,7 @@ namespace Oxide.Plugins
 
         void Init()
         {
+            plugin = this;
             config = Config.ReadObject<PluginConfig>();
         }
 
@@ -129,8 +147,6 @@ namespace Oxide.Plugins
 
             eventActive = true;
 
-            wasLooted = false;
-
             SpawnCargoPlane();
 
             SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI());
@@ -159,12 +175,9 @@ namespace Oxide.Plugins
             DestroyGuards();
             DestroyTimers();
 
-            if (!wasLooted)
+            if (crate != null && !crate.IsDestroyed && !wasLooted)
             {
-                if (crate != null && !crate.IsDestroyed)
-                {
-                    crate?.Kill();
-                }
+                crate?.Kill();
             }
 
             if (marker != null && !marker.IsDestroyed)
@@ -172,6 +185,7 @@ namespace Oxide.Plugins
                 marker?.Kill();
             }
 
+            wasLooted = false;
             marker = null;
             crate  = null;
         }
@@ -210,13 +224,16 @@ namespace Oxide.Plugins
         {
             for (int i = 0; i < config.npcCount; i++)
             {
-                Quaternion rotation = Quaternion.FromToRotation(Vector3.forward, eventPosition);
                 Vector3 location = RandomCircle(eventPosition, 5f, (360 / config.npcCount * i));
-
+                
                 Vector3 position;
-                if (!IsValidLocation(location, out position)) continue;
 
-                SpawnNPC(position, rotation);
+                if (!IsValidLocation(location, out position))
+                {
+                    continue;
+                }
+
+                SpawnNPC(position, Quaternion.FromToRotation(Vector3.forward, eventPosition));
 
                 yield return new WaitForSeconds(0.5f);
             }
@@ -233,16 +250,88 @@ namespace Oxide.Plugins
             }
 
             npc.enableSaving = false;
-            npc._aiDomain.Movement = HTNDomain.MovementRule.RestrainedMove;
             npc._aiDomain.MovementRadius = config.npcRoam;
+            npc._aiDomain.Movement = HTNDomain.MovementRule.RestrainedMove;
             npc.Spawn();
 
             guards.Add(npc);
         }
 
+        void SpawnCreate(Vector3 position)
+        {
+            crate = GameManager.server.CreateEntity(cratePrefab, position, Quaternion.identity) as HackableLockedCrate;
+            if (crate == null)
+            {
+                return;
+            }
+            
+            crate.enableSaving = false;
+            crate.Spawn();
+            crate.gameObject.AddComponent<ParachuteComponent>();
+
+            crate.inventory.itemList.Clear();
+
+            SpawnCrateMarker(crate);
+
+            NextFrame(() => PopulateLoot(crate));
+        }
+
+        void PopulateLoot(HackableLockedCrate crate)
+        {
+            if (config.lootItems.Count < 6)
+            {
+                return;
+            }
+
+            List<LootItem> items = new List<LootItem>();
+
+            int counter = 0;
+
+            while(counter < 4)
+            {
+                LootItem lootItem = config.lootItems[UnityEngine.Random.Range(0, config.lootItems.Count)];
+
+                if (!items.Contains(lootItem))
+                {
+                    items.Add(lootItem);
+
+                    counter++;
+                }
+            }
+
+            foreach (LootItem item in items)
+            {
+                ItemManager.CreateByName(item.shortname, item.amount).MoveToContainer(crate.inventory);
+            }
+        }
+
+        void SpawnCrateMarker(BaseEntity crate)
+        {
+            marker = GameManager.server.CreateEntity(markerPrefab, crate.transform.position, crate.transform.rotation) as MapMarkerGenericRadius;
+            if (marker == null)
+            {
+                return;
+            }
+
+            marker.enableSaving = false;
+            marker.alpha = 0.8f;
+            marker.color1 = ColorConverter(240, 12, 12);
+            marker.color2 = ColorConverter(255, 255, 255);
+            marker.radius = 0.6f;
+            marker.Spawn();
+            marker.SetParent(crate);
+            marker.transform.localPosition = new Vector3(0f,0f,0f);
+            marker.SendUpdate();
+        }
+
         void SpawnCargoPlane()
         {
             CargoPlane cargoplane = GameManager.server.CreateEntity(cargoPrefab) as CargoPlane;
+            if (cargoplane == null)
+            {
+                return;
+            }
+
             cargoplane.InitDropPosition(eventPosition);
             cargoplane.Spawn();
             cargoplane.gameObject.AddComponent<PlaneComponent>();
@@ -277,46 +366,13 @@ namespace Oxide.Plugins
                 lastPosition = transform.position;
 
                 float distance = Mathf.InverseLerp(0.0f, plane.secondsToTake, plane.secondsTaken);
+
                 if (!hasDropped && (double) distance >= 0.5)
                 {
                     hasDropped = true;
 
-                    SpawnCreate(lastPosition);
+                    plugin.SpawnCreate(lastPosition);
                 }
-            }
-
-            void SpawnCreate(Vector3 position)
-            {
-                crate = GameManager.server.CreateEntity(cratePrefab, position, Quaternion.identity);
-                if (crate == null)
-                {
-                    return;
-                }
-                
-                crate.enableSaving = false;
-                crate.Spawn();
-                crate.gameObject.AddComponent<ParachuteComponent>();
-
-                SpawnCrateMarker(crate);            
-            }
-
-            void SpawnCrateMarker(BaseEntity crate)
-            {
-                marker = GameManager.server.CreateEntity(markerPrefab, crate.transform.position, crate.transform.rotation) as MapMarkerGenericRadius;
-                if (marker == null)
-                {
-                    return;
-                }
-
-                marker.enableSaving = false;
-                marker.alpha = 0.8f;
-                marker.color1 = RGBColorConverter(240, 12, 12);
-                marker.color2 = RGBColorConverter(255, 255, 255);
-                marker.radius = 0.6f;
-                marker.Spawn();
-                marker.SetParent(crate);
-                marker.transform.localPosition = new Vector3(0f,0f,0f);
-                marker.SendUpdate();
             }
         }
 
@@ -352,7 +408,10 @@ namespace Oxide.Plugins
 
             void OnCollisionEnter(Collision col)
             {
-                if (parachute == null || parachute.IsDestroyed) return;
+                if (parachute == null || parachute.IsDestroyed)
+                {
+                    return;
+                }
 
                 parachute.Kill();
 
@@ -362,7 +421,7 @@ namespace Oxide.Plugins
         #endregion
 
         #region Helpers
-        static Color RGBColorConverter(int r, int g, int b) => new Color(r/255f, g/255f, b/255f);
+        static Color ColorConverter(int r, int g, int b) => new Color(r/255f, g/255f, b/255f);
 
         Vector3 RandomCircle(Vector3 center, float radius, float angle)
         {
@@ -381,7 +440,11 @@ namespace Oxide.Plugins
                 Vector3 location = new Vector3(Core.Random.Range(-wordSize, wordSize), 200f, Core.Random.Range(-wordSize, wordSize));
 
                 Vector3 position;
-                if (!IsValidLocation(location, out position)) continue;
+
+                if (!IsValidLocation(location, out position))
+                {
+                    continue;
+                }
 
                 return position;
             }
@@ -423,14 +486,14 @@ namespace Oxide.Plugins
         }
 
         // Thanks to yetzt
-		string GetGrid(Vector3 position)
+        string GetGrid(Vector3 position)
         {
-			char letter = 'A';
-			float x = Mathf.Floor((position.x + (ConVar.Server.worldsize / 2)) / 146.3f) % 26;
-			float z = (Mathf.Floor(ConVar.Server.worldsize / 146.3f) - 1) - Mathf.Floor((position.z + (ConVar.Server.worldsize / 2)) / 146.3f);
-			letter = (char)(((int)letter) + x);
-			return $"{letter}{z}";
-		}
+            char letter = 'A';
+            float x = Mathf.Floor((position.x + (ConVar.Server.worldsize / 2)) / 146.3f) % 26;
+            float z = (Mathf.Floor(ConVar.Server.worldsize / 146.3f) - 1) - Mathf.Floor((position.z + (ConVar.Server.worldsize / 2)) / 146.3f);
+            letter = (char)(((int)letter) + x);
+            return $"{letter}{z}";
+        }
 
         void MessagePlayers(string message)
         {
