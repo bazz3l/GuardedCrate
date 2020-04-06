@@ -1,13 +1,12 @@
-using Oxide.Core.Libraries.Covalence;
 using System.Collections.Generic;
 using Rust.Ai.HTN;
 using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.0.7")]
+    [Info("Guarded Crate", "Bazz3l", "1.0.8")]
     [Description("Spawns a crate guarded by scientists with custom loot.")]
-    class GuardedCrate : CovalencePlugin
+    class GuardedCrate : RustPlugin
     {
         #region Fields
         static string cratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
@@ -50,9 +49,10 @@ namespace Oxide.Plugins
             return new PluginConfig
             {
                 eventTime = 3600f,
-                eventLength = 720f,
+                eventLength = 1800f,
                 npcRoam = 80f,
                 npcCount = 15,
+                lootItemsMax = 4,
                 lootItems = new List<LootItem> {
                    new LootItem("rifle.ak", 1),
                    new LootItem("rifle.bold", 1),
@@ -82,6 +82,7 @@ namespace Oxide.Plugins
             public int npcCount;
             public float eventTime;
             public float eventLength;
+            public int lootItemsMax;
             public List<LootItem> lootItems;
         }
 
@@ -269,7 +270,9 @@ namespace Oxide.Plugins
             crate.Spawn();
             crate.gameObject.AddComponent<ParachuteComponent>();
 
-            crate.inventory.itemList.Clear();
+            crate.inventory.Clear();
+            crate.inventory.capacity = config.lootItemsMax;
+            ItemManager.DoRemoves();
 
             SpawnCrateMarker();
 
@@ -278,7 +281,7 @@ namespace Oxide.Plugins
 
         void PopulateLoot()
         {
-            if (config.lootItems.Count < 6)
+            if (config.lootItems.Count < config.lootItemsMax)
             {
                 return;
             }
@@ -287,7 +290,7 @@ namespace Oxide.Plugins
 
             int counter = 0;
 
-            while(counter < 4)
+            while(counter < config.lootItemsMax)
             {
                 LootItem lootItem = config.lootItems[UnityEngine.Random.Range(0, config.lootItems.Count)];
 
@@ -320,7 +323,7 @@ namespace Oxide.Plugins
             marker.radius = 0.6f;
             marker.Spawn();
             marker.SetParent(crate);
-            marker.transform.localPosition = new Vector3(0f,0f,0f);
+            marker.transform.localPosition = Vector3.zero;
             marker.SendUpdate();
         }
 
@@ -457,6 +460,7 @@ namespace Oxide.Plugins
         bool IsValidLocation(Vector3 location, out Vector3 position)
         {
             RaycastHit hit;
+
             if (Physics.Raycast(location + (Vector3.up * 250f), Vector3.down, out hit, Mathf.Infinity, layerMask))
             {
                 Vector3 point = hit.point;
@@ -491,19 +495,21 @@ namespace Oxide.Plugins
         string GetGrid(Vector3 position)
         {
             char letter = 'A';
+
             float x = Mathf.Floor((position.x + (ConVar.Server.worldsize / 2)) / 146.3f) % 26;
+
             float z = (Mathf.Floor(ConVar.Server.worldsize / 146.3f) - 1) - Mathf.Floor((position.z + (ConVar.Server.worldsize / 2)) / 146.3f);
+
             letter = (char)(((int)letter) + x);
+
             return $"{letter}{z}";
         }
 
         void MessagePlayers(string message)
         {
-            foreach (IPlayer player in covalence.Players.Connected)
+            foreach (BasePlayer player in BasePlayer.activePlayerList)
             {
-                if (player == null) continue;
-
-                player.Message(message);
+                player.ChatMessage(message);
             }
         }
         #endregion
