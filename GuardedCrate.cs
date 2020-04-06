@@ -292,7 +292,7 @@ namespace Oxide.Plugins
 
             while(counter < config.lootItemsMax)
             {
-                LootItem lootItem = config.lootItems[UnityEngine.Random.Range(0, config.lootItems.Count)];
+                LootItem lootItem = config.lootItems.GetRandom();
 
                 if (!items.Contains(lootItem))
                 {
