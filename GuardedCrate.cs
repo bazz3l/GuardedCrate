@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.0.8")]
+    [Info("Guarded Crate", "Bazz3l", "1.0.9")]
     [Description("Spawns a crate guarded by scientists with custom loot.")]
     class GuardedCrate : RustPlugin
     {
@@ -14,6 +14,9 @@ namespace Oxide.Plugins
         static string markerPrefab = "assets/prefabs/tools/map/genericradiusmarker.prefab";
         static string chutePrefab = "assets/prefabs/misc/parachute/parachute.prefab";    
         static string npcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
+        static MapMarkerGenericRadius marker;
+        static HackableLockedCrate crate;
+        static GuardedCrate plugin;        
 
         readonly int layerMask = LayerMask.GetMask("Terrain", "World", "Construction", "Deployed");
         readonly int worldMask = LayerMask.GetMask("World");
@@ -24,12 +27,7 @@ namespace Oxide.Plugins
         bool eventActive;
         bool wasLooted;
         Vector3 eventPosition;
-
-        static MapMarkerGenericRadius marker;
-        static HackableLockedCrate crate;
-
-        static PluginConfig config;
-        static GuardedCrate plugin;
+        PluginConfig config;
 
         List<MonumentInfo> monuments
         {
@@ -265,9 +263,10 @@ namespace Oxide.Plugins
             {
                 return;
             }
-            
+
             crate.enableSaving = false;
             crate.Spawn();
+
             crate.gameObject.AddComponent<ParachuteComponent>();
 
             crate.inventory.Clear();
@@ -370,7 +369,7 @@ namespace Oxide.Plugins
 
                 float distance = Mathf.InverseLerp(0.0f, plane.secondsToTake, plane.secondsTaken);
 
-                if (!hasDropped && (double) distance >= 0.5)
+                if (!hasDropped && distance >= 0.5f)
                 {
                     hasDropped = true;
 
