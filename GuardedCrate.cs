@@ -29,15 +29,8 @@ namespace Oxide.Plugins
         Vector3 eventPosition;
         PluginConfig config;
 
-        List<MonumentInfo> monuments
-        {
-            get { return TerrainMeta.Path.Monuments; }
-        }
-
-        float heightToRaycast
-        {
-            get { return TerrainMeta.HighestPoint.y + 250f; }
-        }
+        List<MonumentInfo> monuments { get { return TerrainMeta.Path.Monuments; } }
+        float heightToRaycast { get { return TerrainMeta.HighestPoint.y + 250f; } }
         #endregion
 
         #region Config
@@ -89,10 +82,10 @@ namespace Oxide.Plugins
             public string shortname;
             public int amount;
 
-            public LootItem(string Shortname, int Amount)
+            public LootItem(string shortname, int amount)
             {
-                shortname = Shortname;
-                amount    = Amount;
+                this.shortname = shortname;
+                this.amount = amount;
             }
         }
         #endregion
@@ -266,16 +259,15 @@ namespace Oxide.Plugins
 
             crate.enableSaving = false;
             crate.Spawn();
-
             crate.gameObject.AddComponent<ParachuteComponent>();
 
             crate.inventory.Clear();
             crate.inventory.capacity = config.lootItemsMax;
             ItemManager.DoRemoves();
+            
+            PopulateLoot();
 
             SpawnCrateMarker();
-
-            NextFrame(() => PopulateLoot());
         }
 
         void PopulateLoot()
