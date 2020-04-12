@@ -16,7 +16,7 @@ namespace Oxide.Plugins
         static string npcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
         static MapMarkerGenericRadius marker;
         static HackableLockedCrate crate;
-        static GuardedCrate plugin;        
+        static GuardedCrate plugin;
 
         readonly int layerMask = LayerMask.GetMask("Terrain", "World", "Construction", "Deployed");
 
@@ -37,12 +37,12 @@ namespace Oxide.Plugins
         {
             return new PluginConfig
             {
-                eventTime = 3600f,
-                eventLength = 1800f,
-                npcRoam = 80f,
-                npcCount = 15,
-                lootItemsMax = 4,
-                lootItems = new List<LootItem> {
+                EventTime = 3600f,
+                EventLength = 1800f,
+                NPCRoam = 80f,
+                NPCCount = 15,
+                LootItemsMax = 4,
+                LootItems = new List<LootItem> {
                     new LootItem("rifle.ak", 1, 1),
                     new LootItem("rifle.bold", 1, 1),
                     new LootItem("ammo.rifle", 1000, 1),
@@ -67,12 +67,12 @@ namespace Oxide.Plugins
 
         class PluginConfig
         {
-            public float npcRoam;
-            public int npcCount;
-            public float eventTime;
-            public float eventLength;
-            public int lootItemsMax;
-            public List<LootItem> lootItems;
+            public float NPCRoam;
+            public int NPCCount;
+            public float EventTime;
+            public float EventLength;
+            public int LootItemsMax;
+            public List<LootItem> LootItems;
         }
 
         class LootItem
@@ -95,7 +95,7 @@ namespace Oxide.Plugins
 
         void OnServerInitialized()
         {
-            eventRepeatTimer = timer.Repeat(config.eventTime, 0, () => StartEvent());
+            eventRepeatTimer = timer.Repeat(config.EventTime, 0, () => StartEvent());
 
             StartEvent();
         }
@@ -143,7 +143,7 @@ namespace Oxide.Plugins
 
             SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI());
 
-            eventTimer = timer.Once(config.eventLength, () => StopEvent());
+            eventTimer = timer.Once(config.EventLength, () => StopEvent());
 
             MessagePlayers(string.Format("<color=#DC143C>Guarded Loot</color>: fight for the high value loot ({0}).", GetGrid(eventPosition)));
         }
@@ -209,21 +209,21 @@ namespace Oxide.Plugins
                 eventTimer.Destroy();
             }
 
-            eventRepeatTimer = timer.Repeat(config.eventTime, 0, () => StartEvent());
+            eventRepeatTimer = timer.Repeat(config.EventTime, 0, () => StartEvent());
         }
 
         IEnumerator<object> SpawnAI() 
         {
-            for (int i = 0; i < config.npcCount; i++)
+            for (int i = 0; i < config.NPCCount; i++)
             {
-                Vector3 location = RandomCircle(eventPosition, 10f, (360 / config.npcCount * i));
+                Vector3 location = RandomCircle(eventPosition, 10f, (360 / config.NPCCount * i));
 
-                if (!IsValidLocation(location, out location))
+                Vector3 pos;
+
+                if (IsValidLocation(location, out pos))
                 {
-                    continue;
+                    SpawnNPC(pos, Quaternion.FromToRotation(Vector3.forward, eventPosition));
                 }
-
-                SpawnNPC(location, Quaternion.FromToRotation(Vector3.forward, eventPosition));
 
                 yield return new WaitForSeconds(0.5f);
             }
@@ -240,7 +240,7 @@ namespace Oxide.Plugins
             }
 
             npc.enableSaving = false;
-            npc._aiDomain.MovementRadius = config.npcRoam;
+            npc._aiDomain.MovementRadius = config.NPCRoam;
             npc._aiDomain.Movement = HTNDomain.MovementRule.RestrainedMove;
             npc.Spawn();
 
@@ -260,7 +260,7 @@ namespace Oxide.Plugins
             crate.gameObject.AddComponent<ParachuteComponent>();
 
             crate.inventory.Clear();
-            crate.inventory.capacity = config.lootItemsMax;
+            crate.inventory.capacity = config.LootItemsMax;
             ItemManager.DoRemoves();
 
             PopulateLoot();
@@ -269,19 +269,23 @@ namespace Oxide.Plugins
 
         void PopulateLoot()
         {
-            if (config.lootItems.Count < config.lootItemsMax) return;         
+            if (config.LootItems.Count < config.LootItemsMax)
+            {
+                return;
+            }
 
             List<LootItem> items = new List<LootItem>();
 
             int counter = 0;
 
-            while(counter < config.lootItemsMax)
+            while(counter < config.LootItemsMax)
             {
-                LootItem lootItem = config.lootItems.GetRandom();
+                LootItem lootItem = config.LootItems.GetRandom();
 
-                if (lootItem.Chance >= Core.Random.Range(0.1, 1.0) && !items.Contains(lootItem))
+                if (!items.Contains(lootItem))
                 {
                     items.Add(lootItem);
+
                     counter++;
                 }
             }
@@ -425,9 +429,11 @@ namespace Oxide.Plugins
             {
                 Vector3 location = new Vector3(Core.Random.Range(-wordSize, wordSize), 200f, Core.Random.Range(-wordSize, wordSize));
 
-                if (!IsValidLocation(location, out location)) continue;
+                Vector3 pos;
 
-                return location;
+                if (!IsValidLocation(location, out pos)) continue;
+
+                return pos;
             }
 
             return Vector3.zero;
@@ -435,9 +441,8 @@ namespace Oxide.Plugins
 
         bool IsValidLocation(Vector3 location, out Vector3 position)
         {
-            position = Vector3.zero;
-
             RaycastHit hit;
+
             if (Physics.Raycast(location + (Vector3.up * 250f), Vector3.down, out hit, Mathf.Infinity, layerMask))
             {
                 if (IsValidPoint(hit.point))
@@ -447,6 +452,8 @@ namespace Oxide.Plugins
                     return true;
                 }
             }
+
+            position = Vector3.zero;
 
             return false;
         }
