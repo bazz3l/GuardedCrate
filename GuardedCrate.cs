@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.1.0")]
+    [Info("Guarded Crate", "Bazz3l", "1.1.1")]
     [Description("Spawns a crate guarded by scientists with custom loot.")]
     class GuardedCrate : RustPlugin
     {
@@ -141,11 +141,9 @@ namespace Oxide.Plugins
 
             SpawnCargoPlane();
 
-            SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI());
-
             eventTimer = timer.Once(config.EventLength, () => StopEvent());
 
-            MessagePlayers(string.Format("<color=#DC143C>Guarded Loot</color>: fight for the high value loot ({0}).", GetGrid(eventPosition)));
+            MessagePlayers("<color=#DC143C>Guarded Crate</color>: event started.");
         }
 
         void StopEvent()
@@ -157,7 +155,7 @@ namespace Oxide.Plugins
 
             ResetEvent();
 
-            MessagePlayers(string.Format("<color=#DC143C>Guarded Loot</color>: event ended."));
+            MessagePlayers("<color=#DC143C>Guarded Loot</color>: event ended.");
         }
 
         void ResetEvent()
@@ -265,6 +263,9 @@ namespace Oxide.Plugins
 
             PopulateLoot();
             CreateMarker();
+            SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI());
+
+            MessagePlayers($"<color=#DC143C>Guarded Crate</color>: is landing at ({GetGrid(crate.transform.position)}).");
         }
 
         void PopulateLoot()
