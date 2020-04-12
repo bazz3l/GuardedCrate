@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.0.9")]
+    [Info("Guarded Crate", "Bazz3l", "1.1.0")]
     [Description("Spawns a crate guarded by scientists with custom loot.")]
     class GuardedCrate : RustPlugin
     {
@@ -19,7 +19,6 @@ namespace Oxide.Plugins
         static GuardedCrate plugin;        
 
         readonly int layerMask = LayerMask.GetMask("Terrain", "World", "Construction", "Deployed");
-        readonly int worldMask = LayerMask.GetMask("World");
 
         HashSet<HTNPlayer> guards = new HashSet<HTNPlayer>();
         Timer eventRepeatTimer;
@@ -30,7 +29,6 @@ namespace Oxide.Plugins
         PluginConfig config;
 
         List<MonumentInfo> monuments { get { return TerrainMeta.Path.Monuments; } }
-        float heightToRaycast { get { return TerrainMeta.HighestPoint.y + 250f; } }
         #endregion
 
         #region Config
@@ -45,24 +43,24 @@ namespace Oxide.Plugins
                 npcCount = 15,
                 lootItemsMax = 4,
                 lootItems = new List<LootItem> {
-                   new LootItem("rifle.ak", 1),
-                   new LootItem("rifle.bold", 1),
-                   new LootItem("ammo.rifle", 1000),
-                   new LootItem("lmg.m249", 1),
-                   new LootItem("rifle.m39", 1),
-                   new LootItem("rocket.launcher", 1),
-                   new LootItem("ammo.rocket.basic", 8),
-                   new LootItem("explosive.satchel", 6),
-                   new LootItem("explosive.timed", 4),
-                   new LootItem("gunpowder", 1000),
-                   new LootItem("metal.refined", 500),
-                   new LootItem("leather", 600),
-                   new LootItem("cloth", 600),
-                   new LootItem("scrap", 1000),
-                   new LootItem("sulfur", 5000),
-                   new LootItem("stones", 10000),
-                   new LootItem("lowgradefuel", 2000),
-                   new LootItem("metal.fragments", 5000)
+                    new LootItem("rifle.ak", 1, 1),
+                    new LootItem("rifle.bold", 1, 1),
+                    new LootItem("ammo.rifle", 1000, 1),
+                    new LootItem("lmg.m249", 1, 0.6),
+                    new LootItem("rifle.m39", 1, 1),
+                    new LootItem("rocket.launcher", 1, 1),
+                    new LootItem("ammo.rocket.basic", 8, 0.5),
+                    new LootItem("explosive.satchel", 6, 0.7),
+                    new LootItem("explosive.timed", 4, 0.5),
+                    new LootItem("gunpowder", 1000, 1),
+                    new LootItem("metal.refined", 500, 0.5),
+                    new LootItem("leather", 600, 1),
+                    new LootItem("cloth", 600, 1),
+                    new LootItem("scrap", 1000, 1),
+                    new LootItem("sulfur", 5000, 1),
+                    new LootItem("stones", 10000, 1),
+                    new LootItem("lowgradefuel", 2000, 1),
+                    new LootItem("metal.fragments", 5000, 1)
                 }
             };
         }
@@ -79,13 +77,15 @@ namespace Oxide.Plugins
 
         class LootItem
         {
-            public string shortname;
-            public int amount;
+            public string Shortname;
+            public int Amount;
+            public double Chance;
 
-            public LootItem(string shortname, int amount)
+            public LootItem(string shortname, int amount, double chance = 1)
             {
-                this.shortname = shortname;
-                this.amount = amount;
+                Shortname = shortname;
+                Amount = amount;
+                Chance = chance;
             }
         }
         #endregion
@@ -217,15 +217,13 @@ namespace Oxide.Plugins
             for (int i = 0; i < config.npcCount; i++)
             {
                 Vector3 location = RandomCircle(eventPosition, 10f, (360 / config.npcCount * i));
-                
-                Vector3 position;
 
-                if (!IsValidLocation(location, out position))
+                if (!IsValidLocation(location, out location))
                 {
                     continue;
                 }
 
-                SpawnNPC(position, Quaternion.FromToRotation(Vector3.forward, eventPosition));
+                SpawnNPC(location, Quaternion.FromToRotation(Vector3.forward, eventPosition));
 
                 yield return new WaitForSeconds(0.5f);
             }
@@ -264,18 +262,14 @@ namespace Oxide.Plugins
             crate.inventory.Clear();
             crate.inventory.capacity = config.lootItemsMax;
             ItemManager.DoRemoves();
-            
-            PopulateLoot();
 
-            SpawnCrateMarker();
+            PopulateLoot();
+            CreateMarker();
         }
 
         void PopulateLoot()
         {
-            if (config.lootItems.Count < config.lootItemsMax)
-            {
-                return;
-            }
+            if (config.lootItems.Count < config.lootItemsMax) return;         
 
             List<LootItem> items = new List<LootItem>();
 
@@ -285,21 +279,20 @@ namespace Oxide.Plugins
             {
                 LootItem lootItem = config.lootItems.GetRandom();
 
-                if (!items.Contains(lootItem))
+                if (lootItem.Chance >= Core.Random.Range(0.1, 1.0) && !items.Contains(lootItem))
                 {
                     items.Add(lootItem);
-
                     counter++;
                 }
             }
 
             foreach (LootItem item in items)
             {
-                ItemManager.CreateByName(item.shortname, item.amount).MoveToContainer(crate.inventory);
+                ItemManager.CreateByName(item.Shortname, item.Amount).MoveToContainer(crate.inventory);
             }
         }
 
-        void SpawnCrateMarker()
+        void CreateMarker()
         {
             marker = GameManager.server.CreateEntity(markerPrefab, crate.transform.position, crate.transform.rotation) as MapMarkerGenericRadius;
             if (marker == null)
@@ -360,7 +353,6 @@ namespace Oxide.Plugins
                 lastPosition = transform.position;
 
                 float distance = Mathf.InverseLerp(0.0f, plane.secondsToTake, plane.secondsTaken);
-
                 if (!hasDropped && distance >= 0.5f)
                 {
                     hasDropped = true;
@@ -384,7 +376,7 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                parachute = GameManager.server.CreateEntity(chutePrefab, entity.transform.position) as BaseEntity;
+                parachute = GameManager.server.CreateEntity(chutePrefab, entity.transform.position);
                 if (parachute == null)
                 {
                     return;
@@ -402,12 +394,10 @@ namespace Oxide.Plugins
 
             void OnCollisionEnter(Collision col)
             {
-                if (parachute == null || parachute.IsDestroyed)
+                if (parachute != null && !parachute.IsDestroyed)
                 {
-                    return;
+                    parachute?.Kill();
                 }
-
-                parachute.Kill();
 
                 Destroy(this);
             }
@@ -435,14 +425,9 @@ namespace Oxide.Plugins
             {
                 Vector3 location = new Vector3(Core.Random.Range(-wordSize, wordSize), 200f, Core.Random.Range(-wordSize, wordSize));
 
-                Vector3 position;
+                if (!IsValidLocation(location, out location)) continue;
 
-                if (!IsValidLocation(location, out position))
-                {
-                    continue;
-                }
-
-                return position;
+                return location;
             }
 
             return Vector3.zero;
@@ -450,30 +435,51 @@ namespace Oxide.Plugins
 
         bool IsValidLocation(Vector3 location, out Vector3 position)
         {
-            RaycastHit hit;
+            position = Vector3.zero;
 
+            RaycastHit hit;
             if (Physics.Raycast(location + (Vector3.up * 250f), Vector3.down, out hit, Mathf.Infinity, layerMask))
             {
-                Vector3 point = hit.point;
-
-                if (!IsMonument(point) && !WaterLevel.Test(point))
+                if (IsValidPoint(hit.point))
                 {
-                    position = point;
+                    position = hit.point;
 
-                    return true;                    
+                    return true;
                 }
             }
-
-            position = Vector3.zero;
 
             return false;
         }
 
-        bool IsMonument(Vector3 position)
+        bool IsValidPoint(Vector3 point)
         {
-            foreach(MonumentInfo mon in monuments)
+            if (IsNearMonument(point) || IsNearPlayer(point) || WaterLevel.Test(point))
             {
-                if (mon.Bounds.Contains(position))
+                return false;
+            }
+
+            return true;
+        }
+
+        bool IsNearMonument(Vector3 position)
+        {
+            foreach(MonumentInfo monument in monuments)
+            {
+                if (monument.Bounds.Contains(position))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        bool IsNearPlayer(Vector3 position)
+        {
+            foreach(BasePlayer player in BasePlayer.activePlayerList)
+            {
+                float distance = Vector3.Distance(position, player.transform.position);
+                if (distance < 10)
                 {
                     return true;
                 }
@@ -486,11 +492,8 @@ namespace Oxide.Plugins
         string GetGrid(Vector3 position)
         {
             char letter = 'A';
-
             float x = Mathf.Floor((position.x + (ConVar.Server.worldsize / 2)) / 146.3f) % 26;
-
             float z = (Mathf.Floor(ConVar.Server.worldsize / 146.3f) - 1) - Mathf.Floor((position.z + (ConVar.Server.worldsize / 2)) / 146.3f);
-
             letter = (char)(((int)letter) + x);
 
             return $"{letter}{z}";
