@@ -6,34 +6,35 @@ namespace Oxide.Plugins
 {
     [Info("Guarded Crate", "Bazz3l", "1.1.1")]
     [Description("Spawns a crate guarded by scientists with custom loot.")]
-    class GuardedCrate : RustPlugin
+    public class GuardedCrate : RustPlugin
     {
         #region Fields
-        static string cratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
-        static string cargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
-        static string markerPrefab = "assets/prefabs/tools/map/genericradiusmarker.prefab";
-        static string chutePrefab = "assets/prefabs/misc/parachute/parachute.prefab";    
-        static string npcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
-        static MapMarkerGenericRadius marker;
-        static HackableLockedCrate crate;
-        static GuardedCrate plugin;
+        public string cratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
+        public string cargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
+        public string markerPrefab = "assets/prefabs/tools/map/genericradiusmarker.prefab";
+        public string npcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";  
+        public MapMarkerGenericRadius marker;
+        public HackableLockedCrate crate;
 
-        readonly int layerMask = LayerMask.GetMask("Terrain", "World", "Construction", "Deployed");
+        public static string chutePrefab = "assets/prefabs/misc/parachute/parachute.prefab";  
+        public static GuardedCrate plugin;
+        public static PluginConfig config;
 
-        HashSet<HTNPlayer> guards = new HashSet<HTNPlayer>();
-        Timer eventRepeatTimer;
-        Timer eventTimer;
-        bool eventActive;
-        bool wasLooted;
-        Vector3 eventPosition;
-        PluginConfig config;
+        public readonly int layerMask = LayerMask.GetMask("Terrain", "World", "Construction", "Deployed");
+
+        public HashSet<HTNPlayer> guards = new HashSet<HTNPlayer>();
+        public Timer eventRepeatTimer;
+        public Timer eventTimer;
+        public bool eventActive;
+        public bool wasLooted;
+        public Vector3 eventPosition;
 
         List<MonumentInfo> monuments { get { return TerrainMeta.Path.Monuments; } }
         #endregion
 
         #region Config
 
-        PluginConfig GetDefaultConfig()
+        public PluginConfig GetDefaultConfig()
         {
             return new PluginConfig
             {
@@ -65,7 +66,7 @@ namespace Oxide.Plugins
             };
         }
 
-        class PluginConfig
+        public class PluginConfig
         {
             public float NPCRoam;
             public int NPCCount;
@@ -75,7 +76,7 @@ namespace Oxide.Plugins
             public List<LootItem> LootItems;
         }
 
-        class LootItem
+        public class LootItem
         {
             public string Shortname;
             public int Amount;
@@ -93,22 +94,22 @@ namespace Oxide.Plugins
         #region Oxide
         protected override void LoadDefaultConfig() => Config.WriteObject(GetDefaultConfig(), true);
 
-        void OnServerInitialized()
+        private void OnServerInitialized()
         {
             eventRepeatTimer = timer.Repeat(config.EventTime, 0, () => StartEvent());
 
             StartEvent();
         }
 
-        void Init()
+        private void Init()
         {
             plugin = this;
             config = Config.ReadObject<PluginConfig>();
         }
 
-        void Unload() => StopEvent();
+        private void Unload() => StopEvent();
 
-        void OnLootEntity(BasePlayer player, BaseEntity entity)
+        private void OnLootEntity(BasePlayer player, BaseEntity entity)
         {
             if (entity == null || crate == null || entity.net.ID != crate.net.ID)
             {
@@ -122,7 +123,7 @@ namespace Oxide.Plugins
         #endregion
 
         #region Core
-        void StartEvent()
+        private void StartEvent()
         {
             if (eventActive)
             {
@@ -146,7 +147,7 @@ namespace Oxide.Plugins
             MessagePlayers("<color=#DC143C>Guarded Crate</color>: event started.");
         }
 
-        void StopEvent()
+        private void StopEvent()
         {
             if (crate != null && !crate.IsDestroyed)
             {
@@ -158,7 +159,7 @@ namespace Oxide.Plugins
             MessagePlayers("<color=#DC143C>Guarded Loot</color>: event ended.");
         }
 
-        void ResetEvent()
+        private void ResetEvent()
         {
             eventActive = false;
 
@@ -180,7 +181,7 @@ namespace Oxide.Plugins
             crate  = null;
         }
 
-        void DestroyGuards()
+        private void DestroyGuards()
         {
             foreach (HTNPlayer npc in guards)
             {
@@ -195,7 +196,7 @@ namespace Oxide.Plugins
             guards.Clear();
         }
 
-        void DestroyTimers()
+        private void DestroyTimers()
         {
             if (eventRepeatTimer != null && !eventRepeatTimer.Destroyed)
             {
@@ -210,7 +211,7 @@ namespace Oxide.Plugins
             eventRepeatTimer = timer.Repeat(config.EventTime, 0, () => StartEvent());
         }
 
-        IEnumerator<object> SpawnAI() 
+        private IEnumerator<object> SpawnAI() 
         {
             for (int i = 0; i < config.NPCCount; i++)
             {
@@ -229,7 +230,7 @@ namespace Oxide.Plugins
             yield return null;
         }
 
-        void SpawnNPC(Vector3 position, Quaternion rotation)
+        private void SpawnNPC(Vector3 position, Quaternion rotation)
         {
             HTNPlayer npc = GameManager.server.CreateEntity(npcPrefab, position, rotation) as HTNPlayer;
             if (npc == null)
@@ -245,7 +246,7 @@ namespace Oxide.Plugins
             guards.Add(npc);
         }
 
-        void SpawnCreate(Vector3 position)
+        private void SpawnCreate(Vector3 position)
         {
             crate = GameManager.server.CreateEntity(cratePrefab, position, Quaternion.identity) as HackableLockedCrate;
             if (crate == null)
@@ -268,7 +269,7 @@ namespace Oxide.Plugins
             MessagePlayers($"<color=#DC143C>Guarded Crate</color>: is landing at ({GetGrid(crate.transform.position)}).");
         }
 
-        void PopulateLoot()
+        private void PopulateLoot()
         {
             if (config.LootItems.Count < config.LootItemsMax)
             {
@@ -297,7 +298,7 @@ namespace Oxide.Plugins
             }
         }
 
-        void CreateMarker()
+        private void CreateMarker()
         {
             marker = GameManager.server.CreateEntity(markerPrefab, crate.transform.position, crate.transform.rotation) as MapMarkerGenericRadius;
             if (marker == null)
@@ -316,7 +317,7 @@ namespace Oxide.Plugins
             marker.SendUpdate();
         }
 
-        void SpawnCargoPlane()
+        private void SpawnCargoPlane()
         {
             CargoPlane cargoplane = GameManager.server.CreateEntity(cargoPrefab) as CargoPlane;
             if (cargoplane == null)
@@ -329,13 +330,13 @@ namespace Oxide.Plugins
             cargoplane.gameObject.AddComponent<PlaneComponent>();
         }
 
-        class PlaneComponent : MonoBehaviour
+        public class PlaneComponent : MonoBehaviour
         {
-            CargoPlane plane;
-            Vector3 lastPosition;
-            bool hasDropped;
+            private CargoPlane plane;
+            private Vector3 lastPosition;
+            private bool hasDropped;
 
-            void Awake()
+            private void Awake()
             {
                 plane = GetComponent<CargoPlane>();
                 if (plane == null)
@@ -347,7 +348,7 @@ namespace Oxide.Plugins
                 plane.dropped = true;
             }
 
-            void Update()
+            private void Update()
             {
                 if (plane == null || plane.IsDestroyed)
                 {
@@ -367,12 +368,12 @@ namespace Oxide.Plugins
             }
         }
 
-        class ParachuteComponent : FacepunchBehaviour
+        public class ParachuteComponent : FacepunchBehaviour
         {
-            public BaseEntity parachute;
-            public BaseEntity entity;
+            private BaseEntity parachute;
+            private BaseEntity entity;
 
-            void Awake()
+            private void Awake()
             {
                 entity = GetComponent<BaseEntity>();
                 if (entity == null)
@@ -397,7 +398,7 @@ namespace Oxide.Plugins
                 rb.drag       = 2.5f;
             }
 
-            void OnCollisionEnter(Collision col)
+            private void OnCollisionEnter(Collision col)
             {
                 if (parachute != null && !parachute.IsDestroyed)
                 {
@@ -410,11 +411,11 @@ namespace Oxide.Plugins
         #endregion
 
         #region Helpers
-        static Color ColorConverter(int r, int g, int b) => new Color(r/255f, g/255f, b/255f);
+        public static Color ColorConverter(int r, int g, int b) => new Color(r/255f, g/255f, b/255f);
 
-        float MapSize() => TerrainMeta.Size.x / 2;
+        private float MapSize() => TerrainMeta.Size.x / 2;
 
-        Vector3 RandomCircle(Vector3 center, float radius, float angle)
+        private Vector3 RandomCircle(Vector3 center, float radius, float angle)
         {
             Vector3 pos = center;
             pos.x += radius * Mathf.Sin(angle * Mathf.Deg2Rad);
@@ -422,7 +423,7 @@ namespace Oxide.Plugins
             return pos;
         }
 
-        Vector3 RandomLocation(int maxTries = 100)
+        private Vector3 RandomLocation(int maxTries = 100)
         {
             float wordSize = MapSize() - 600f;
 
@@ -440,7 +441,7 @@ namespace Oxide.Plugins
             return Vector3.zero;
         }
 
-        bool IsValidLocation(Vector3 location, out Vector3 position)
+        private bool IsValidLocation(Vector3 location, out Vector3 position)
         {
             RaycastHit hit;
 
@@ -459,7 +460,7 @@ namespace Oxide.Plugins
             return false;
         }
 
-        bool IsValidPoint(Vector3 point)
+        private bool IsValidPoint(Vector3 point)
         {
             if (IsNearMonument(point) || IsNearPlayer(point) || WaterLevel.Test(point))
             {
@@ -469,7 +470,7 @@ namespace Oxide.Plugins
             return true;
         }
 
-        bool IsNearMonument(Vector3 position)
+       private bool IsNearMonument(Vector3 position)
         {
             foreach(MonumentInfo monument in monuments)
             {
@@ -482,7 +483,7 @@ namespace Oxide.Plugins
             return false;
         }
 
-        bool IsNearPlayer(Vector3 position)
+        private bool IsNearPlayer(Vector3 position)
         {
             foreach(BasePlayer player in BasePlayer.activePlayerList)
             {
@@ -497,7 +498,7 @@ namespace Oxide.Plugins
         }
 
         // Thanks to yetzt
-        string GetGrid(Vector3 position)
+        private string GetGrid(Vector3 position)
         {
             char letter = 'A';
             float x = Mathf.Floor((position.x + (ConVar.Server.worldsize / 2)) / 146.3f) % 26;
@@ -507,7 +508,7 @@ namespace Oxide.Plugins
             return $"{letter}{z}";
         }
 
-        void MessagePlayers(string message)
+        private void MessagePlayers(string message)
         {
             foreach (BasePlayer player in BasePlayer.activePlayerList)
             {
