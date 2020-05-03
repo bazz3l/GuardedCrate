@@ -449,13 +449,16 @@ namespace Oxide.Plugins
 
             for (int i = 0; i < maxTries; i++)
             {
-                Vector3 location = new Vector3(Core.Random.Range(-wordSize, wordSize), 200f, Core.Random.Range(-wordSize, wordSize));
+                Vector3 randomLocation = new Vector3(Core.Random.Range(-wordSize, wordSize), 200f, Core.Random.Range(-wordSize, wordSize));
 
-                Vector3 pos;
+                Vector3 validPosition;
 
-                if (!IsValidLocation(location, out pos)) continue;
+                if (!IsValidLocation(randomLocation, out validPosition))
+                {
+                    continue;
+                }
 
-                return pos;
+                return validPosition;
             }
 
             return Vector3.zero;
@@ -467,9 +470,11 @@ namespace Oxide.Plugins
 
             if (Physics.Raycast(location + (Vector3.up * 250f), Vector3.down, out hit, Mathf.Infinity, _layerMask))
             {
-                if (IsValidPoint(hit.point))
+                Vector3 point = hit.point;
+
+                if (IsValidPoint(point))
                 {
-                    position = hit.point;
+                    position = point;
 
                     return true;
                 }
@@ -508,7 +513,8 @@ namespace Oxide.Plugins
             foreach(BasePlayer player in BasePlayer.activePlayerList)
             {
                 float distance = Vector3.Distance(position, player.transform.position);
-                if (distance < 10)
+
+                if (distance < 50)
                 {
                     return true;
                 }
