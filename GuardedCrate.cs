@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.1.3")]
+    [Info("Guarded Crate", "Bazz3l", "1.1.4")]
     [Description("Spawns a crate guarded by scientists with custom loot.")]
     class GuardedCrate : RustPlugin
     {
@@ -29,7 +29,6 @@ namespace Oxide.Plugins
         Timer _eventTimer;
         bool _eventActive;
         bool _wasLooted;
-        Vector3 _eventPosition;
         public static GuardedCrate plugin;
         #endregion
 
@@ -136,17 +135,18 @@ namespace Oxide.Plugins
                 return;
             }
 
-            _eventPosition = RandomLocation();
+            Vector3 position = RandomLocation();
 
-            if (_eventPosition == Vector3.zero)
+            if (position == Vector3.zero)
             {
                 ResetEvent();
+
                 return;
             }
 
             _eventActive = true;
 
-            SpawnCargoPlane();
+            SpawnPlane(position);
 
             _eventTimer = timer.Once(_config.EventLength, () => StopEvent());
 
@@ -217,17 +217,17 @@ namespace Oxide.Plugins
             _eventRepeatTimer = timer.Repeat(_config.EventTime, 0, () => StartEvent());
         }
 
-        IEnumerator<object> SpawnAI() 
+        IEnumerator<object> SpawnAI(Vector3 position) 
         {
             for (int i = 0; i < _config.NPCCount; i++)
             {
-                Vector3 location = RandomCircle(_eventPosition, 10f, (360 / _config.NPCCount * i));
+                Vector3 spawnLocation = RandomCircle(position, 10f, (360 / _config.NPCCount * i));
 
-                Vector3 pos;
+                Vector3 validPosition;
 
-                if (IsValidLocation(location, out pos))
+                if (IsValidLocation(spawnLocation, out validPosition))
                 {
-                    SpawnNPC(pos, Quaternion.FromToRotation(Vector3.forward, _eventPosition));
+                    SpawnNPC(validPosition, Quaternion.FromToRotation(Vector3.forward, position));
                 }
 
                 yield return new WaitForSeconds(0.5f);
@@ -261,6 +261,19 @@ namespace Oxide.Plugins
             Interface.Oxide.CallHook("GiveKit", npc, _config.KitName);
         }
 
+        void SpawnPlane(Vector3 position)
+        {
+            CargoPlane cargoplane = GameManager.server.CreateEntity(_cargoPrefab) as CargoPlane;
+            if (cargoplane == null)
+            {
+                return;
+            }
+
+            cargoplane.Spawn();
+            cargoplane.InitDropPosition(position);
+            cargoplane.gameObject.AddComponent<PlaneComponent>();
+        }
+
         void SpawnCreate(Vector3 position)
         {
             _crate = GameManager.server.CreateEntity(_cratePrefab, position, Quaternion.identity) as HackableLockedCrate;
@@ -275,14 +288,27 @@ namespace Oxide.Plugins
 
             _crate.inventory.Clear();
             _crate.inventory.capacity = _config.LootItemsMax;
-
             ItemManager.DoRemoves();
-            
-            SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI());
-
-            CreateMarker();
 
             timer.Once(5f, () => PopulateLoot());
+        }
+
+        void SpawnMarker(Vector3 position)
+        {
+            _marker = GameManager.server.CreateEntity(_markerPrefab, position) as MapMarkerGenericRadius;
+            if (_marker == null)
+            {
+                return;
+            }
+
+            _marker.enableSaving = false;
+            _marker.alpha  = 0.8f;
+            _marker.color1 = Color.red;
+            _marker.color2 = Color.white;
+            _marker.radius = 0.6f;
+            _marker.Spawn();
+            _marker.transform.localPosition = Vector3.zero;
+            _marker.SendUpdate(true);
         }
 
         void PopulateLoot()
@@ -314,38 +340,15 @@ namespace Oxide.Plugins
             }
         }
 
-        void CreateMarker()
+        void SpawnEvent(Vector3 position)
         {
-            _marker = GameManager.server.CreateEntity(_markerPrefab, _crate.transform.position, _crate.transform.rotation) as MapMarkerGenericRadius;
-            if (_marker == null)
-            {
-                return;
-            }
+            SpawnMarker(position);
 
-            _marker.enableSaving = false;
-            _marker.alpha = 0.8f;
-            _marker.color1 = ColorConverter(240, 12, 12);
-            _marker.color2 = ColorConverter(255, 255, 255);
-            _marker.radius = 0.6f;
-            _marker.Spawn();
-            _marker.SetParent(_crate);
-            _marker.transform.localPosition = Vector3.zero;
-            _marker.SendUpdate();
+            SpawnCreate(position);
 
-            MessagePlayers($"<color=#DC143C>Guarded Crate</color>: is landing at ({GetGrid(_marker.transform.position)}).");
-        }
+            SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI(position));
 
-        void SpawnCargoPlane()
-        {
-            CargoPlane cargoplane = GameManager.server.CreateEntity(_cargoPrefab) as CargoPlane;
-            if (cargoplane == null)
-            {
-                return;
-            }
-
-            cargoplane.InitDropPosition(_eventPosition);
-            cargoplane.Spawn();
-            cargoplane.gameObject.AddComponent<PlaneComponent>();
+            MessagePlayers($"<color=#DC143C>Guarded Crate</color>: crate landing fight for the loot, ({GetGrid(position)}).");
         }
 
         class PlaneComponent : MonoBehaviour
@@ -381,7 +384,7 @@ namespace Oxide.Plugins
                 {
                     _hasDropped = true;
 
-                    plugin.SpawnCreate(_lastPosition);
+                    plugin.SpawnEvent(_lastPosition);
                 }
             }
         }
@@ -430,8 +433,6 @@ namespace Oxide.Plugins
         #endregion
 
         #region Helpers
-        Color ColorConverter(int r, int g, int b) => new Color(r/255f, g/255f, b/255f);
-
         float MapSize() => TerrainMeta.Size.x / 2;
 
         Vector3 RandomCircle(Vector3 center, float radius, float angle)
@@ -444,7 +445,7 @@ namespace Oxide.Plugins
 
         Vector3 RandomLocation(int maxTries = 100)
         {
-            float wordSize = MapSize() - 600f;
+            float wordSize = MapSize();
 
             for (int i = 0; i < maxTries; i++)
             {
@@ -516,13 +517,15 @@ namespace Oxide.Plugins
             return false;
         }
 
+
         // Thanks to yetzt
         string GetGrid(Vector3 position)
         {
             char letter = 'A';
-            float x = Mathf.Floor((position.x + (ConVar.Server.worldsize / 2)) / 146.3f) % 26;
-            float z = (Mathf.Floor(ConVar.Server.worldsize / 146.3f) - 1) - Mathf.Floor((position.z + (ConVar.Server.worldsize / 2)) / 146.3f);
-            letter = (char)(((int)letter) + x);
+
+            float x = Mathf.Floor((position.x + (ConVar.Server.worldsize/2)) / 146.3f) % 26;
+            float z = (Mathf.Floor(ConVar.Server.worldsize/146.3f)-1)-Mathf.Floor((position.z+(ConVar.Server.worldsize/2)) / 146.3f);
+            letter = (char)(((int)letter)+x);
 
             return $"{letter}{z}";
         }
