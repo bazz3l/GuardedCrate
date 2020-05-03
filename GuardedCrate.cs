@@ -349,7 +349,7 @@ namespace Oxide.Plugins
 
             SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI(position));
 
-            MessagePlayers($"<color=#DC143C>Guarded Crate</color>: crate landing fight for the loot, ({GetGrid(position)}).");
+            MessagePlayers($"<color=#DC143C>Guarded Crate</color>: crate landing at ({GetGrid(position)}), fight for the loot.");
         }
 
         class PlaneComponent : MonoBehaviour
