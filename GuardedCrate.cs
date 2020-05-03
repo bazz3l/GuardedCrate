@@ -470,11 +470,9 @@ namespace Oxide.Plugins
 
             if (Physics.Raycast(location + (Vector3.up * 250f), Vector3.down, out hit, Mathf.Infinity, _layerMask))
             {
-                Vector3 point = hit.point;
-
-                if (IsValidPoint(point))
+                if (IsValidPoint(hit.point))
                 {
-                    position = point;
+                    position = hit.point;
 
                     return true;
                 }
@@ -512,9 +510,7 @@ namespace Oxide.Plugins
         {
             foreach(BasePlayer player in BasePlayer.activePlayerList)
             {
-                float distance = Vector3.Distance(position, player.transform.position);
-
-                if (distance < 50)
+                if (Vector3.Distance(position, player.transform.position) < 50)
                 {
                     return true;
                 }
@@ -524,13 +520,13 @@ namespace Oxide.Plugins
         }
 
 
-        // Thanks to yetzt
+        // Thanks to yetzt with fixed grid
         string GetGrid(Vector3 position)
         {
             char letter = 'A';
 
             float x = Mathf.Floor((position.x + (ConVar.Server.worldsize/2)) / 146.3f) % 26;
-            float z = (Mathf.Floor(ConVar.Server.worldsize/146.3f)-1)-Mathf.Floor((position.z+(ConVar.Server.worldsize/2)) / 146.3f);
+            float z = Mathf.Floor(ConVar.Server.worldsize/146.3f) - Mathf.Floor((position.z+(ConVar.Server.worldsize/2)) / 146.3f);
             letter = (char)(((int)letter)+x);
 
             return $"{letter}{z}";
