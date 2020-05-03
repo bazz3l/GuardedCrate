@@ -5,7 +5,7 @@ using UnityEngine;
 namespace Oxide.Plugins
 {
     [Info("Guarded Crate", "Bazz3l", "1.1.3")]
-    [Description("Spawns a _crate guarded by scientists with custom loot.")]
+    [Description("Spawns a crate guarded by scientists with custom loot.")]
     class GuardedCrate : RustPlugin
     {
         #region Fields
@@ -261,15 +261,17 @@ namespace Oxide.Plugins
             ItemManager.DoRemoves();
             
             CreateMarker();
-            timer.In(3f, () => PopulateLoot());
+
             SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI());
+
+            timer.Once(5f, () => PopulateLoot());
 
             MessagePlayers($"<color=#DC143C>Guarded Crate</color>: is landing at ({GetGrid(_crate.transform.position)}).");
         }
 
         void PopulateLoot()
         {
-            if (_config.LootItems.Count < _config.LootItemsMax)
+            if (_crate == null || _config.LootItems.Count < _config.LootItemsMax)
             {
                 return;
             }
@@ -291,7 +293,7 @@ namespace Oxide.Plugins
 
             foreach (LootItem item in items)
             {
-                ItemManager.CreateByName(item.Shortname, item.Amount).MoveToContainer(_crate.inventory);
+                ItemManager.CreateByName(item.Shortname, item.Amount)?.MoveToContainer(_crate.inventory);
             }
         }
 
