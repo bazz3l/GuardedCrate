@@ -525,9 +525,9 @@ namespace Oxide.Plugins
         {
             char letter = 'A';
 
-            float x = Mathf.Floor((position.x + (ConVar.Server.worldsize/2)) / 146.3f) % 26;
-            float z = Mathf.Floor(ConVar.Server.worldsize/146.3f) - Mathf.Floor((position.z+(ConVar.Server.worldsize/2)) / 146.3f);
-            letter = (char)(((int)letter)+x);
+            float x = Mathf.Floor((position.x + (ConVar.Server.worldsize / 2)) / 146.3f) % 26;
+            float z = Mathf.Floor(ConVar.Server.worldsize / 146.3f) - Mathf.Floor((position.z + (ConVar.Server.worldsize / 2)) / 146.3f);
+            letter = (char)(((int)letter) + x);
 
             return $"{letter}{z}";
         }
