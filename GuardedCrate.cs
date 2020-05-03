@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using Oxide.Core.Plugins;
+using Oxide.Core;
 using Rust.Ai.HTN;
 using UnityEngine;
 
@@ -8,6 +10,8 @@ namespace Oxide.Plugins
     [Description("Spawns a crate guarded by scientists with custom loot.")]
     class GuardedCrate : RustPlugin
     {
+        [PluginReference] Plugin Kits;
+
         #region Fields
         const string _cratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
         const string _cargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
@@ -16,7 +20,7 @@ namespace Oxide.Plugins
 
         readonly int _layerMask = LayerMask.GetMask("Terrain", "World", "Construction", "Deployed");
 
-        List<MonumentInfo> monuments { get { return TerrainMeta.Path.Monuments; } }
+        List<MonumentInfo> _monuments { get { return TerrainMeta.Path.Monuments; } }
         HashSet<HTNPlayer> _guards = new HashSet<HTNPlayer>();
         PluginConfig _config;
         HackableLockedCrate _crate;
@@ -34,9 +38,11 @@ namespace Oxide.Plugins
         {
             return new PluginConfig
             {
+                UseKit = false,
+                KitName = "guard",
                 EventTime = 3600f,
                 EventLength = 1800f,
-                NPCRoam = 80f,
+                NPCRoam = 150f,
                 NPCCount = 15,
                 LootItemsMax = 4,
                 LootItems = new List<LootItem> {
@@ -64,6 +70,8 @@ namespace Oxide.Plugins
 
         class PluginConfig
         {
+            public bool UseKit;
+            public string KitName;
             public float NPCRoam;
             public int NPCCount;
             public float EventTime;
@@ -242,6 +250,15 @@ namespace Oxide.Plugins
             npc.Spawn();
 
             _guards.Add(npc);
+
+            if (!_config.UseKit)
+            {
+                return;
+            }
+
+            npc.inventory.Strip();
+
+            Interface.Oxide.CallHook("GiveKit", npc, _config.KitName);
         }
 
         void SpawnCreate(Vector3 position)
@@ -258,15 +275,14 @@ namespace Oxide.Plugins
 
             _crate.inventory.Clear();
             _crate.inventory.capacity = _config.LootItemsMax;
+
             ItemManager.DoRemoves();
             
-            CreateMarker();
-
             SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI());
 
-            timer.Once(5f, () => PopulateLoot());
+            CreateMarker();
 
-            MessagePlayers($"<color=#DC143C>Guarded Crate</color>: is landing at ({GetGrid(_crate.transform.position)}).");
+            timer.Once(5f, () => PopulateLoot());
         }
 
         void PopulateLoot()
@@ -287,6 +303,7 @@ namespace Oxide.Plugins
                 if (!items.Contains(lootItem))
                 {
                     items.Add(lootItem);
+
                     counter++;
                 }
             }
@@ -314,6 +331,8 @@ namespace Oxide.Plugins
             _marker.SetParent(_crate);
             _marker.transform.localPosition = Vector3.zero;
             _marker.SendUpdate();
+
+            MessagePlayers($"<color=#DC143C>Guarded Crate</color>: is landing at ({GetGrid(_marker.transform.position)}).");
         }
 
         void SpawnCargoPlane()
@@ -472,7 +491,7 @@ namespace Oxide.Plugins
 
         bool IsNearMonument(Vector3 position)
         {
-            foreach(MonumentInfo monument in monuments)
+            foreach(MonumentInfo monument in _monuments)
             {
                 if (monument.Bounds.Contains(position))
                 {
