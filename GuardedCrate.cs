@@ -13,12 +13,12 @@ namespace Oxide.Plugins
         [PluginReference] Plugin Kits;
 
         #region Fields
+        readonly int _layerMask = LayerMask.GetMask("Terrain", "World", "Construction", "Deployed");        
+
         const string _cratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
         const string _cargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
         const string _markerPrefab = "assets/prefabs/tools/map/genericradiusmarker.prefab";
         const string _npcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
-
-        readonly int _layerMask = LayerMask.GetMask("Terrain", "World", "Construction", "Deployed");
 
         List<MonumentInfo> _monuments { get { return TerrainMeta.Path.Monuments; } }
         HashSet<HTNPlayer> _guards = new HashSet<HTNPlayer>();
@@ -29,6 +29,7 @@ namespace Oxide.Plugins
         Timer _eventTimer;
         bool _eventActive;
         bool _wasLooted;
+        
         public static GuardedCrate plugin;
         #endregion
 
@@ -526,7 +527,7 @@ namespace Oxide.Plugins
             char letter = 'A';
 
             float x = Mathf.Floor((position.x + (ConVar.Server.worldsize / 2)) / 146.3f) % 26;
-            float z = Mathf.Floor(ConVar.Server.worldsize / 146.3f) - Mathf.Floor((position.z + (ConVar.Server.worldsize / 2)) / 146.3f);
+            float z = Mathf.Floor(ConVar.Server.worldsize / 146.3f) - Mathf.Floor((position.z+(ConVar.Server.worldsize / 2)) / 146.3f);
             letter = (char)(((int)letter) + x);
 
             return $"{letter}{z}";
