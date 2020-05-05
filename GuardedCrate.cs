@@ -120,10 +120,7 @@ namespace Oxide.Plugins
 
         void OnLootEntity(BasePlayer player, BaseEntity entity)
         {
-            if (entity == null || _crate == null || entity.net.ID != _crate.net.ID)
-            {
-                return;
-            }
+            if (entity == null || _crate == null || entity.net.ID != _crate.net.ID) return;
 
             _wasLooted = true;
 
@@ -136,10 +133,7 @@ namespace Oxide.Plugins
         #region Core
         void StartEvent()
         {
-            if (_eventActive)
-            {
-                return;
-            }
+            if (_eventActive) return;
 
             Vector3 position = RandomLocation();
 
@@ -197,10 +191,7 @@ namespace Oxide.Plugins
         {
             foreach (HTNPlayer npc in _guards)
             {
-                if (npc == null || npc.IsDestroyed)
-                {
-                    continue;
-                }
+                if (npc == null || npc.IsDestroyed) continue;
 
                 npc.Kill();
             }
@@ -244,22 +235,16 @@ namespace Oxide.Plugins
         void SpawnNPC(Vector3 position, Quaternion rotation)
         {
             HTNPlayer npc = GameManager.server.CreateEntity(_npcPrefab, position, rotation) as HTNPlayer;
-            if (npc == null)
-            {
-                return;
-            }
+            if (npc == null) return;
 
             npc.enableSaving = false;
-            npc._aiDomain.MovementRadius = (UnityEngine.Random.Range(40, 60) >= 50) ? _config.NPCMinRoam : _config.NPCMaxRoam;
-            npc._aiDomain.Movement = HTNDomain.MovementRule.RestrainedMove;
+            npc._aiDomain.MovementRadius = (UnityEngine.Random.Range(-20f, 20f) > 0f) ? _config.NPCMinRoam : _config.NPCMaxRoam;
+            npc._aiDomain.Movement       = HTNDomain.MovementRule.RestrainedMove;
             npc.Spawn();
 
             _guards.Add(npc);
 
-            if (!_config.UseKit)
-            {
-                return;
-            }
+            if (!_config.UseKit) return;
 
             npc.inventory.Strip();
 
@@ -269,10 +254,7 @@ namespace Oxide.Plugins
         void SpawnPlane(Vector3 position)
         {
             CargoPlane cargoplane = GameManager.server.CreateEntity(_cargoPrefab) as CargoPlane;
-            if (cargoplane == null)
-            {
-                return;
-            }
+            if (cargoplane == null) return;
 
             cargoplane.Spawn();
             cargoplane.InitDropPosition(position);
@@ -282,10 +264,7 @@ namespace Oxide.Plugins
         void SpawnCreate(Vector3 position)
         {
             _crate = GameManager.server.CreateEntity(_cratePrefab, position, Quaternion.identity) as HackableLockedCrate;
-            if (_crate == null)
-            {
-                return;
-            }
+            if (_crate == null) return;
 
             _crate.enableSaving = false;
             _crate.Spawn();
@@ -301,10 +280,7 @@ namespace Oxide.Plugins
         void SpawnMarker(Vector3 position)
         {
             _marker = GameManager.server.CreateEntity(_markerPrefab, position) as MapMarkerGenericRadius;
-            if (_marker == null)
-            {
-                return;
-            }
+            if (_marker == null) return;
 
             _marker.enableSaving = false;
             _marker.alpha  = 0.8f;
@@ -318,10 +294,7 @@ namespace Oxide.Plugins
 
         void PopulateLoot()
         {
-            if (_crate == null || _config.LootItems.Count < _config.LootItemsMax)
-            {
-                return;
-            }
+            if (_crate == null || _config.LootItems.Count < _config.LootItemsMax) return;
 
             List<LootItem> items = new List<LootItem>();
 
@@ -368,6 +341,7 @@ namespace Oxide.Plugins
                 if (_plane == null)
                 {
                     Destroy(this);
+
                     return;
                 }
 
@@ -379,6 +353,7 @@ namespace Oxide.Plugins
                 if (_plane == null || _plane.IsDestroyed)
                 {
                     Destroy(this);
+
                     return;
                 }
 
@@ -406,19 +381,17 @@ namespace Oxide.Plugins
                 if (_entity == null)
                 {
                     Destroy(this);
+
                     return;
                 }
 
                 _parachute = GameManager.server.CreateEntity(_chutePrefab, _entity.transform.position);
-                if (_parachute == null)
-                {
-                    return;
-                }
+                if (_parachute == null) return;
 
                 _parachute.enableSaving = false;
-                _parachute.Spawn();
                 _parachute.SetParent(_entity);
-                _parachute.transform.localPosition = new Vector3(0,1f,0);
+                _parachute.transform.localPosition = new Vector3(0, 1f, 0);
+                _parachute.Spawn();
 
                 Rigidbody rb  = _entity.GetComponent<Rigidbody>();
                 rb.useGravity = true;
@@ -455,13 +428,9 @@ namespace Oxide.Plugins
             for (int i = 0; i < maxTries; i++)
             {
                 Vector3 randomLocation = new Vector3(Core.Random.Range(-wordSize, wordSize), 200f, Core.Random.Range(-wordSize, wordSize));
-
                 Vector3 validPosition;
 
-                if (!IsValidLocation(randomLocation, out validPosition))
-                {
-                    continue;
-                }
+                if (!IsValidLocation(randomLocation, out validPosition)) continue;
 
                 return validPosition;
             }
@@ -523,7 +492,6 @@ namespace Oxide.Plugins
 
             return false;
         }
-
 
         // Thanks to yetzt with fixed grid
         string GetGrid(Vector3 position)
