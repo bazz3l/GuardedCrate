@@ -40,13 +40,14 @@ namespace Oxide.Plugins
             {
                 EventTime = 3600f,
                 EventLength = 1800f,
-                NPCRoam = 200f,
+                NPCMaxRoam = 150f,
+                NPCMinRoam = 30f,
                 NPCCount = 10,
                 LootItemsMax = 4,
                 LootItems = new List<LootItem> {
                     new LootItem("rifle.ak", 1, 1),
                     new LootItem("rifle.bold", 1, 1),
-                    new LootItem("ammo.rifle", 1000, 1),
+                    new LootItem("ammo.rifle", 100, 1),
                     new LootItem("lmg.m249", 1, 0.6),
                     new LootItem("rifle.m39", 1, 1),
                     new LootItem("rocket.launcher", 1, 1),
@@ -73,13 +74,14 @@ namespace Oxide.Plugins
 
         class PluginConfig
         {
-            public bool UseKit;
-            public float NPCRoam;
+            public float NPCMinRoam;
+            public float NPCMaxRoam;
             public int NPCCount;
             public float EventTime;
             public float EventLength;
             public int LootItemsMax;
             public List<LootItem> LootItems;
+            public bool UseKit;
             public List<string> NPCKits;
         }
 
@@ -227,6 +229,12 @@ namespace Oxide.Plugins
             {
                 Vector3 spawnLocation = RandomCircle(position, 10f, (360 / _config.NPCCount * i));
 
+                spawnLocation = spawnLocation + new Vector3(
+                    UnityEngine.Random.Range(-5f, 5f), 
+                    0, 
+                    UnityEngine.Random.Range(-5f, 5f)
+                );
+
                 Vector3 validPosition;
 
                 if (IsValidLocation(spawnLocation, out validPosition))
@@ -249,7 +257,7 @@ namespace Oxide.Plugins
             }
 
             npc.enableSaving = false;
-            npc._aiDomain.MovementRadius = _config.NPCRoam;
+            npc._aiDomain.MovementRadius = (UnityEngine.Random.Range(40, 60) >= 50) ? _config.NPCMinRoam : _config.NPCMaxRoam;
             npc._aiDomain.Movement = HTNDomain.MovementRule.RestrainedMove;
             npc.Spawn();
 
