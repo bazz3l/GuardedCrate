@@ -218,7 +218,8 @@ namespace Oxide.Plugins
         {
             for (int i = 0; i < _config.NPCCount; i++)
             {
-                Vector3 spawnLocation = RandomCircle(position, 10f, (360 / _config.NPCCount * i));
+                float distance = UnityEngine.Random.Range(10, 20f);
+                Vector3 spawnLocation = RandomCircle(position, distance, (360 / _config.NPCCount * i));
                 Vector3 validPosition;
 
                 if (IsValidLocation(spawnLocation, out validPosition))
