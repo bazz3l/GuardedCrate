@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.1.4")]
+    [Info("Guarded Crate", "Bazz3l", "1.1.5")]
     [Description("Spawns a crate guarded by scientists with custom loot.")]
     class GuardedCrate : RustPlugin
     {
@@ -38,12 +38,10 @@ namespace Oxide.Plugins
         {
             return new PluginConfig
             {
-                UseKit = false,
-                KitName = "guard",
                 EventTime = 3600f,
                 EventLength = 1800f,
-                NPCRoam = 150f,
-                NPCCount = 15,
+                NPCRoam = 200f,
+                NPCCount = 10,
                 LootItemsMax = 4,
                 LootItems = new List<LootItem> {
                     new LootItem("rifle.ak", 1, 1),
@@ -64,6 +62,11 @@ namespace Oxide.Plugins
                     new LootItem("stones", 10000, 1),
                     new LootItem("lowgradefuel", 2000, 1),
                     new LootItem("metal.fragments", 5000, 1)
+                },
+                UseKit = false,
+                NPCKits = new List<string> {
+                    "guard",
+                    "guard-heavy"
                 }
             };
         }
@@ -71,13 +74,13 @@ namespace Oxide.Plugins
         class PluginConfig
         {
             public bool UseKit;
-            public string KitName;
             public float NPCRoam;
             public int NPCCount;
             public float EventTime;
             public float EventLength;
             public int LootItemsMax;
             public List<LootItem> LootItems;
+            public List<string> NPCKits;
         }
 
         class LootItem
@@ -259,7 +262,7 @@ namespace Oxide.Plugins
 
             npc.inventory.Strip();
 
-            Interface.Oxide.CallHook("GiveKit", npc, _config.KitName);
+            Interface.Oxide.CallHook("GiveKit", npc, _config.NPCKits.GetRandom());
         }
 
         void SpawnPlane(Vector3 position)
