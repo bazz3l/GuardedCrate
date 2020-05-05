@@ -13,7 +13,7 @@ namespace Oxide.Plugins
         [PluginReference] Plugin Kits;
 
         #region Fields
-        readonly int _layerMask = LayerMask.GetMask("Terrain", "World", "Construction", "Deployed");        
+        readonly int _layerMask = LayerMask.GetMask("Terrain", "World", "Construction", "Deployed");
 
         const string _cratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
         const string _cargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
@@ -41,7 +41,7 @@ namespace Oxide.Plugins
                 EventTime = 3600f,
                 EventLength = 1800f,
                 NPCMaxRoam = 150f,
-                NPCMinRoam = 30f,
+                NPCMinRoam = 100f,
                 NPCCount = 10,
                 LootItemsMax = 4,
                 LootItems = new List<LootItem> {
