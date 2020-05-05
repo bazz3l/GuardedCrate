@@ -29,6 +29,7 @@ namespace Oxide.Plugins
         Timer _eventTimer;
         bool _eventActive;
         bool _wasLooted;
+        Vector3 _eventPos;
         
         public static GuardedCrate plugin;
         #endregion
@@ -43,27 +44,6 @@ namespace Oxide.Plugins
                 NPCMaxRoam = 150f,
                 NPCMinRoam = 100f,
                 NPCCount = 10,
-                LootItemsMax = 4,
-                LootItems = new List<LootItem> {
-                    new LootItem("rifle.ak", 1, 1),
-                    new LootItem("rifle.bold", 1, 1),
-                    new LootItem("ammo.rifle", 100, 1),
-                    new LootItem("lmg.m249", 1, 0.6),
-                    new LootItem("rifle.m39", 1, 1),
-                    new LootItem("rocket.launcher", 1, 1),
-                    new LootItem("ammo.rocket.basic", 8, 0.5),
-                    new LootItem("explosive.satchel", 6, 0.7),
-                    new LootItem("explosive.timed", 4, 0.5),
-                    new LootItem("gunpowder", 1000, 1),
-                    new LootItem("metal.refined", 500, 0.5),
-                    new LootItem("leather", 600, 1),
-                    new LootItem("cloth", 600, 1),
-                    new LootItem("scrap", 1000, 1),
-                    new LootItem("sulfur", 5000, 1),
-                    new LootItem("stones", 10000, 1),
-                    new LootItem("lowgradefuel", 2000, 1),
-                    new LootItem("metal.fragments", 5000, 1)
-                },
                 UseKit = false,
                 NPCKits = new List<string> {
                     "guard",
@@ -79,24 +59,8 @@ namespace Oxide.Plugins
             public int NPCCount;
             public float EventTime;
             public float EventLength;
-            public int LootItemsMax;
-            public List<LootItem> LootItems;
             public bool UseKit;
             public List<string> NPCKits;
-        }
-
-        class LootItem
-        {
-            public string Shortname;
-            public int Amount;
-            public double Chance;
-
-            public LootItem(string shortname, int amount, double chance = 1)
-            {
-                Shortname = shortname;
-                Amount = amount;
-                Chance = chance;
-            }
         }
         #endregion
 
@@ -214,17 +178,16 @@ namespace Oxide.Plugins
             _eventRepeatTimer = timer.Repeat(_config.EventTime, 0, () => StartEvent());
         }
 
-        IEnumerator<object> SpawnAI(Vector3 position) 
+        IEnumerator<object> SpawnAI() 
         {
             for (int i = 0; i < _config.NPCCount; i++)
             {
-                float distance = UnityEngine.Random.Range(10f, 20f);
-                Vector3 spawnLocation = RandomCircle(position, distance, (360 / _config.NPCCount * i));
+                Vector3 spawnLocation = RandomCircle(_eventPos, UnityEngine.Random.Range(10f, 20f), (360 / _config.NPCCount * i));
                 Vector3 validPosition;
 
                 if (IsValidLocation(spawnLocation, out validPosition))
                 {
-                    SpawnNPC(validPosition, Quaternion.FromToRotation(Vector3.forward, position));
+                    SpawnNPC(validPosition, Quaternion.FromToRotation(Vector3.forward, _eventPos));
                 }
 
                 yield return new WaitForSeconds(0.5f);
@@ -270,12 +233,6 @@ namespace Oxide.Plugins
             _crate.enableSaving = false;
             _crate.Spawn();
             _crate.gameObject.AddComponent<ParachuteComponent>();
-
-            _crate.inventory.Clear();
-            _crate.inventory.capacity = _config.LootItemsMax;
-            ItemManager.DoRemoves();
-
-            timer.Once(5f, () => PopulateLoot());
         }
 
         void SpawnMarker(Vector3 position)
@@ -293,41 +250,21 @@ namespace Oxide.Plugins
             _marker.SendUpdate(true);
         }
 
-        void PopulateLoot()
-        {
-            if (_crate == null || _config.LootItems.Count < _config.LootItemsMax) return;
-
-            List<LootItem> items = new List<LootItem>();
-
-            int counter = 0;
-
-            while(counter < _config.LootItemsMax)
-            {
-                LootItem lootItem = _config.LootItems.GetRandom();
-
-                if (!items.Contains(lootItem))
-                {
-                    items.Add(lootItem);
-
-                    counter++;
-                }
-            }
-
-            foreach (LootItem item in items)
-            {
-                ItemManager.CreateByName(item.Shortname, item.Amount)?.MoveToContainer(_crate.inventory);
-            }
-        }
-
         void SpawnEvent(Vector3 position)
         {
-            SpawnMarker(position);
+            _eventPos = position;
 
-            SpawnCreate(position);
+            SpawnMarker(_eventPos);
 
-            SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI(position));
+            SpawnCreate(_eventPos);
 
-            MessagePlayers($"<color=#DC143C>Guarded Crate</color>: crate landing at ({GetGrid(position)}), fight for the loot.");
+            MessagePlayers($"<color=#DC143C>Guarded Crate</color>: Guards with valuable cargo arriving at ({GetGrid(_eventPos)}) ETA 30 seconds! Prepare to attack or run for your life.");
+
+            timer.In(30f, () => {
+                if (!_eventActive) return;
+
+                SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI());
+            });
         }
 
         class PlaneComponent : MonoBehaviour
