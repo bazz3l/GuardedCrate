@@ -10,7 +10,8 @@ namespace Oxide.Plugins
     [Description("Spawns a crate guarded by scientists with custom loot.")]
     class GuardedCrate : RustPlugin
     {
-        [PluginReference] Plugin Kits;
+        [PluginReference]
+        Plugin Kits;
 
         #region Fields
         readonly int _layerMask = LayerMask.GetMask("Terrain", "World", "Construction", "Deployed");
@@ -31,7 +32,7 @@ namespace Oxide.Plugins
         bool _wasLooted;
         Vector3 _eventPos;
         
-        public static GuardedCrate plugin;
+        public static GuardedCrate Instance;
         #endregion
 
         #region Config
@@ -76,7 +77,8 @@ namespace Oxide.Plugins
 
         void Init()
         {
-            plugin = this;
+            Instance = this;
+
             _config = Config.ReadObject<PluginConfig>();
         }
 
@@ -84,7 +86,10 @@ namespace Oxide.Plugins
 
         void OnLootEntity(BasePlayer player, BaseEntity entity)
         {
-            if (entity == null || _crate == null || entity.net.ID != _crate.net.ID) return;
+            if (entity == null || _crate == null || entity.net.ID != _crate.net.ID)
+            {
+                return;
+            }
 
             _wasLooted = true;
 
@@ -97,7 +102,10 @@ namespace Oxide.Plugins
         #region Core
         void StartEvent()
         {
-            if (_eventActive) return;
+            if (_eventActive)
+            {
+                return;
+            }
 
             Vector3 position = RandomLocation();
 
@@ -199,7 +207,10 @@ namespace Oxide.Plugins
         void SpawnNPC(Vector3 position, Quaternion rotation)
         {
             HTNPlayer npc = GameManager.server.CreateEntity(_npcPrefab, position, rotation) as HTNPlayer;
-            if (npc == null) return;
+            if (npc == null)
+            {
+                return;
+            }
 
             npc.enableSaving = false;
             npc._aiDomain.MovementRadius = (UnityEngine.Random.Range(-20f, 20f) > 0f) ? _config.NPCMinRoam : _config.NPCMaxRoam;
@@ -208,7 +219,10 @@ namespace Oxide.Plugins
 
             _guards.Add(npc);
 
-            if (!_config.UseKit) return;
+            if (!_config.UseKit)
+            {
+                return;
+            }
 
             npc.inventory.Strip();
 
@@ -218,17 +232,23 @@ namespace Oxide.Plugins
         void SpawnPlane(Vector3 position)
         {
             CargoPlane cargoplane = GameManager.server.CreateEntity(_cargoPrefab) as CargoPlane;
-            if (cargoplane == null) return;
+            if (cargoplane == null)
+            {
+                return;
+            }
 
-            cargoplane.Spawn();
             cargoplane.InitDropPosition(position);
+            cargoplane.Spawn();
             cargoplane.gameObject.AddComponent<PlaneComponent>();
         }
 
         void SpawnCreate(Vector3 position)
         {
             _crate = GameManager.server.CreateEntity(_cratePrefab, position, Quaternion.identity) as HackableLockedCrate;
-            if (_crate == null) return;
+            if (_crate == null)
+            {
+                return;
+            }
 
             _crate.enableSaving = false;
             _crate.Spawn();
@@ -238,7 +258,10 @@ namespace Oxide.Plugins
         void SpawnMarker(Vector3 position)
         {
             _marker = GameManager.server.CreateEntity(_markerPrefab, position) as MapMarkerGenericRadius;
-            if (_marker == null) return;
+            if (_marker == null)
+            {
+                return;
+            }
 
             _marker.enableSaving = false;
             _marker.alpha  = 0.8f;
@@ -302,7 +325,7 @@ namespace Oxide.Plugins
                 {
                     _hasDropped = true;
 
-                    plugin.SpawnEvent(_lastPosition);
+                    Instance.SpawnEvent(_lastPosition);
                 }
             }
         }
