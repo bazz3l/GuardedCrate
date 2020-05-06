@@ -282,12 +282,8 @@ namespace Oxide.Plugins
             SpawnCreate(_eventPos);
 
             MessagePlayers($"<color=#DC143C>Guarded Crate</color>: Guards with valuable cargo arriving at ({GetGrid(_eventPos)}) ETA 30 seconds! Prepare to attack or run for your life.");
-
-            timer.In(30f, () => {
-                if (!_eventActive) return;
-
-                SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI());
-            });
+            
+            timer.In(30f, () => SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI()));
         }
 
         class PlaneComponent : MonoBehaviour
