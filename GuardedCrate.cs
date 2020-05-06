@@ -102,17 +102,10 @@ namespace Oxide.Plugins
         #region Core
         void StartEvent()
         {
-            if (_eventActive)
-            {
-                return;
-            }
-
             Vector3 position = RandomLocation();
 
-            if (position == Vector3.zero)
+            if (position == Vector3.zero || _eventActive)
             {
-                ResetEvent();
-
                 return;
             }
 
@@ -156,7 +149,7 @@ namespace Oxide.Plugins
 
             _wasLooted = false;
             _marker = null;
-            _crate  = null;
+            _crate = null;
         }
 
         void DestroyGuards()
@@ -343,16 +336,19 @@ namespace Oxide.Plugins
                 }
 
                 _parachute = GameManager.server.CreateEntity(_chutePrefab, _entity.transform.position);
-                if (_parachute == null) return;
+                if (_parachute == null)
+                {
+                    return;
+                }
 
                 _parachute.enableSaving = false;
                 _parachute.SetParent(_entity);
                 _parachute.transform.localPosition = new Vector3(0, 1f, 0);
                 _parachute.Spawn();
 
-                Rigidbody rb  = _entity.GetComponent<Rigidbody>();
+                Rigidbody rb = _entity.GetComponent<Rigidbody>();
                 rb.useGravity = true;
-                rb.drag       = 2.5f;
+                rb.drag = 1.2f;
             }
 
             void OnCollisionEnter(Collision col)
