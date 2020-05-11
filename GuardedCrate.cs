@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.1.5")]
+    [Info("Guarded Crate", "Bazz3l", "1.1.6")]
     [Description("Spawns a crate guarded by scientists with custom loot.")]
     class GuardedCrate : RustPlugin
     {
@@ -24,8 +24,8 @@ namespace Oxide.Plugins
         List<MonumentInfo> _monuments { get { return TerrainMeta.Path.Monuments; } }
         HashSet<HTNPlayer> _guards = new HashSet<HTNPlayer>();
         PluginConfig _config;
+        MapMarkerGenericRadius _marker;        
         HackableLockedCrate _crate;
-        MapMarkerGenericRadius _marker;
         Timer _eventRepeatTimer;
         Timer _eventTimer;
         bool _eventActive;
@@ -95,7 +95,7 @@ namespace Oxide.Plugins
 
             ResetEvent();
 
-            MessagePlayers("<color=#DC143C>Guarded Loot</color>: event completed.");
+            MessagePlayers($"<color=#DC143C>Guarded Loot</color>: ({player.displayName}) completed the event.");
         }
         #endregion
 
@@ -114,8 +114,6 @@ namespace Oxide.Plugins
             SpawnPlane(position);
 
             _eventTimer = timer.Once(_config.EventLength, () => StopEvent());
-
-            MessagePlayers("<color=#DC143C>Guarded Crate</color>: event started.");
         }
 
         void StopEvent()
@@ -126,8 +124,6 @@ namespace Oxide.Plugins
             }
 
             ResetEvent();
-
-            MessagePlayers("<color=#DC143C>Guarded Loot</color>: event ended.");
         }
 
         void ResetEvent()
@@ -274,9 +270,9 @@ namespace Oxide.Plugins
 
             SpawnCreate(_eventPos);
 
-            MessagePlayers($"<color=#DC143C>Guarded Crate</color>: Guards with valuable cargo arriving at ({GetGrid(_eventPos)}) ETA 30 seconds! Prepare to attack or run for your life.");
-            
             timer.In(30f, () => SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI()));
+
+            MessagePlayers($"<color=#DC143C>Guarded Crate</color>: Guards with valuable cargo arriving at ({GetGrid(_eventPos)}) ETA 30 seconds! Prepare to attack or run for your life.");
         }
 
         class PlaneComponent : MonoBehaviour
