@@ -24,15 +24,16 @@ namespace Oxide.Plugins
         List<MonumentInfo> _monuments { get { return TerrainMeta.Path.Monuments; } }
         HashSet<HTNPlayer> _guards = new HashSet<HTNPlayer>();
         PluginConfig _config;
-        MapMarkerGenericRadius _marker;        
+        MapMarkerGenericRadius _marker;
         HackableLockedCrate _crate;
         Timer _eventRepeatTimer;
         Timer _eventTimer;
         bool _eventActive;
         bool _wasLooted;
         Vector3 _eventPos;
+        float _botHealth = 150f;
         
-        public static GuardedCrate Instance;
+        static GuardedCrate Instance;
         #endregion
 
         #region Config
@@ -42,26 +43,36 @@ namespace Oxide.Plugins
             {
                 EventTime = 3600f,
                 EventLength = 1800f,
-                NPCMaxRoam = 150f,
-                NPCMinRoam = 100f,
-                NPCCount = 10,
-                UseKit = false,
-                NPCKits = new List<string> {
-                    "guard",
-                    "guard-heavy"
+                NPCCount = 15,
+                UseKit = true,
+                NPCTypes = new List<NPCType> {
+                    new NPCType("guard", 150f),
+                    new NPCType("guard-heavy", 300f)
                 }
             };
         }
 
         class PluginConfig
         {
-            public float NPCMinRoam;
-            public float NPCMaxRoam;
             public int NPCCount;
             public float EventTime;
             public float EventLength;
             public bool UseKit;
-            public List<string> NPCKits;
+            public List<NPCType> NPCTypes;
+        }
+
+        class NPCType
+        {
+            public string Kit;
+            public float Health;
+            public float Distance;
+
+            public NPCType(string kit, float health = 150f, float distance = 100f)
+            {
+                Kit = kit;
+                Health = health;
+                Distance = distance;
+            }
         }
         #endregion
 
@@ -86,10 +97,7 @@ namespace Oxide.Plugins
 
         void OnLootEntity(BasePlayer player, BaseEntity entity)
         {
-            if (entity == null || _crate == null || entity.net.ID != _crate.net.ID)
-            {
-                return;
-            }
+            if (entity == null || _crate == null || entity.net.ID != _crate.net.ID) return;
 
             _wasLooted = true;
 
@@ -104,10 +112,7 @@ namespace Oxide.Plugins
         {
             Vector3 position = RandomLocation();
 
-            if (position == Vector3.zero || _eventActive)
-            {
-                return;
-            }
+            if (position == Vector3.zero || _eventActive) return;
 
             _eventActive = true;
 
@@ -182,7 +187,7 @@ namespace Oxide.Plugins
                 Vector3 spawnLocation = RandomCircle(_eventPos, UnityEngine.Random.Range(10f, 20f), (360 / _config.NPCCount * i));
                 Vector3 validPosition;
 
-                if (IsValidLocation(spawnLocation, out validPosition))
+                if (IsValidLocation(spawnLocation, out validPosition, false))
                 {
                     SpawnNPC(validPosition, Quaternion.FromToRotation(Vector3.forward, _eventPos));
                 }
@@ -196,35 +201,30 @@ namespace Oxide.Plugins
         void SpawnNPC(Vector3 position, Quaternion rotation)
         {
             HTNPlayer npc = GameManager.server.CreateEntity(_npcPrefab, position, rotation) as HTNPlayer;
-            if (npc == null)
-            {
-                return;
-            }
+            if (npc == null) return;
 
+            NPCType npcType = _config.NPCTypes.GetRandom();
+            
             npc.enableSaving = false;
-            npc._aiDomain.MovementRadius = (UnityEngine.Random.Range(-20f, 20f) > 0f) ? _config.NPCMinRoam : _config.NPCMaxRoam;
+            npc._aiDomain.MovementRadius = UnityEngine.Random.Range(50f, npcType.Distance);
             npc._aiDomain.Movement       = HTNDomain.MovementRule.RestrainedMove;
             npc.Spawn();
+            npc._health    = npcType.Health;
+            npc._maxHealth = npcType.Health;
 
             _guards.Add(npc);
 
-            if (!_config.UseKit)
-            {
-                return;
-            }
+            if (!_config.UseKit) return;
 
             npc.inventory.Strip();
-
-            Interface.Oxide.CallHook("GiveKit", npc, _config.NPCKits.GetRandom());
+            
+            Interface.Oxide.CallHook("GiveKit", npc, npcType.Kit);
         }
 
         void SpawnPlane(Vector3 position)
         {
             CargoPlane cargoplane = GameManager.server.CreateEntity(_cargoPrefab) as CargoPlane;
-            if (cargoplane == null)
-            {
-                return;
-            }
+            if (cargoplane == null) return;
 
             cargoplane.InitDropPosition(position);
             cargoplane.Spawn();
@@ -234,10 +234,7 @@ namespace Oxide.Plugins
         void SpawnCreate(Vector3 position)
         {
             _crate = GameManager.server.CreateEntity(_cratePrefab, position, Quaternion.identity) as HackableLockedCrate;
-            if (_crate == null)
-            {
-                return;
-            }
+            if (_crate == null) return;
 
             _crate.enableSaving = false;
             _crate.Spawn();
@@ -247,10 +244,7 @@ namespace Oxide.Plugins
         void SpawnMarker(Vector3 position)
         {
             _marker = GameManager.server.CreateEntity(_markerPrefab, position) as MapMarkerGenericRadius;
-            if (_marker == null)
-            {
-                return;
-            }
+            if (_marker == null) return;
 
             _marker.enableSaving = false;
             _marker.alpha  = 0.8f;
@@ -287,7 +281,6 @@ namespace Oxide.Plugins
                 if (_plane == null)
                 {
                     Destroy(this);
-
                     return;
                 }
 
@@ -299,7 +292,6 @@ namespace Oxide.Plugins
                 if (_plane == null || _plane.IsDestroyed)
                 {
                     Destroy(this);
-
                     return;
                 }
 
@@ -327,15 +319,11 @@ namespace Oxide.Plugins
                 if (_entity == null)
                 {
                     Destroy(this);
-
                     return;
                 }
 
                 _parachute = GameManager.server.CreateEntity(_chutePrefab, _entity.transform.position);
-                if (_parachute == null)
-                {
-                    return;
-                }
+                if (_parachute == null) return;
 
                 _parachute.enableSaving = false;
                 _parachute.SetParent(_entity);
@@ -387,13 +375,13 @@ namespace Oxide.Plugins
             return Vector3.zero;
         }
 
-        bool IsValidLocation(Vector3 location, out Vector3 position)
+        bool IsValidLocation(Vector3 location, out Vector3 position, bool nearbyPlayers = true)
         {
             RaycastHit hit;
 
             if (Physics.Raycast(location + (Vector3.up * 250f), Vector3.down, out hit, Mathf.Infinity, _layerMask))
             {
-                if (IsValidPoint(hit.point))
+                if (IsValidPoint(hit.point, nearbyPlayers))
                 {
                     position = hit.point;
 
@@ -406,9 +394,11 @@ namespace Oxide.Plugins
             return false;
         }
 
-        bool IsValidPoint(Vector3 point)
+        bool IsValidPoint(Vector3 point, bool hasPlayers = false)
         {
-            if (IsNearMonument(point) || IsNearPlayer(point) || WaterLevel.Test(point))
+            if (IsNearMonument(point) 
+            || WaterLevel.Test(point) 
+            || hasPlayers && IsNearPlayer(point))
             {
                 return false;
             }
