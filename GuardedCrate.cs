@@ -7,7 +7,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.1.6")]
+    [Info("Guarded Crate", "Bazz3l", "1.1.7")]
     [Description("Spawns a crate guarded by scientists with custom loot.")]
     class GuardedCrate : RustPlugin
     {
@@ -15,7 +15,12 @@ namespace Oxide.Plugins
         Plugin Kits;
 
         #region Fields
-        readonly int _layerMask = LayerMask.GetMask("Terrain", "World", "Default");
+        const string _cratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
+        const string _markerPrefab = "assets/prefabs/tools/map/genericradiusmarker.prefab";
+        const string _cargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
+        const string _npcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
+
+        readonly int _allowedLayers = LayerMask.GetMask("Terrain", "World", "Default");
         readonly List<int> _blockedLayers = new List<int> {
             (int)Layer.Water,
             (int)Layer.Construction,
@@ -25,11 +30,6 @@ namespace Oxide.Plugins
             (int)Layer.Tree,
             (int)Layer.Clutter
         };
-
-        const string _cratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
-        const string _markerPrefab = "assets/prefabs/tools/map/genericradiusmarker.prefab";
-        const string _cargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
-        const string _npcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
 
         List<MonumentInfo> _monuments { get { return TerrainMeta.Path.Monuments; } }
         HashSet<HTNPlayer> _guards = new HashSet<HTNPlayer>();
@@ -446,14 +446,14 @@ namespace Oxide.Plugins
         {
             RaycastHit hit;
 
-            if (!Physics.Raycast(location + (Vector3.up * 250f), Vector3.down, out hit, Mathf.Infinity, _layerMask))
+            if (!Physics.Raycast(location + (Vector3.up * 250f), Vector3.down, out hit, Mathf.Infinity, _allowedLayers))
             {
                 position = Vector3.zero;
 
                 return false;
             }
 
-            if (!IsValidPoint(hit.point, hasPlayers) || _blockedLayers.Contains(hit.collider.gameObject.layer))
+            if (!IsValidPoint(hit.point, hasPlayers) || _blockedLayers.Contains(hit.collider.gameObject.layer) || hit.collider.name.Contains("_rock"))
             {
                 position = Vector3.zero;
 
