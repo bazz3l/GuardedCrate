@@ -3,6 +3,7 @@ using Oxide.Core.Plugins;
 using Oxide.Core;
 using Rust.Ai.HTN;
 using UnityEngine;
+using Rust;
 
 namespace Oxide.Plugins
 {
@@ -14,11 +15,20 @@ namespace Oxide.Plugins
         Plugin Kits;
 
         #region Fields
-        readonly int _layerMask = LayerMask.GetMask("Terrain", "World", "Construction", "Deployed");
+        readonly int _layerMask = LayerMask.GetMask("Terrain", "World", "Default");
+        readonly List<int> _blockedLayers = new List<int> {
+            (int)Layer.Water,
+            (int)Layer.Construction,
+            (int)Layer.Trigger,
+            (int)Layer.Prevent_Building,
+            (int)Layer.Deployed,
+            (int)Layer.Tree,
+            (int)Layer.Clutter
+        };
 
         const string _cratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
-        const string _cargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
         const string _markerPrefab = "assets/prefabs/tools/map/genericradiusmarker.prefab";
+        const string _cargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
         const string _npcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
 
         List<MonumentInfo> _monuments { get { return TerrainMeta.Path.Monuments; } }
@@ -31,7 +41,6 @@ namespace Oxide.Plugins
         bool _eventActive;
         bool _wasLooted;
         Vector3 _eventPos;
-        float _botHealth = 150f;
         
         static GuardedCrate Instance;
         #endregion
@@ -104,6 +113,24 @@ namespace Oxide.Plugins
             ResetEvent();
 
             MessagePlayers($"<color=#DC143C>Guarded Loot</color>: ({player.displayName}) completed the event.");
+        }
+
+        object CanBuild(Planner planner, Construction prefab, Construction.Target target)
+        {
+            BasePlayer player = planner?.GetOwnerPlayer();
+            if (player == null)
+            {
+                return null;
+            }
+
+            if (_eventActive && Vector3Ex.Distance2D(_eventPos, player.transform.position) <= 20f)
+            {
+                player.ChatMessage("<color=#DC143C>Guarded Loot</color>: You can't build here.");
+
+                return false;
+            }
+
+            return null;
         }
         #endregion
 
@@ -184,12 +211,12 @@ namespace Oxide.Plugins
         {
             for (int i = 0; i < _config.NPCCount; i++)
             {
-                Vector3 spawnLocation = RandomCircle(_eventPos, UnityEngine.Random.Range(10f, 20f), (360 / _config.NPCCount * i));
-                Vector3 validPosition;
+                Vector3 spawnLoc = RandomCircle(_eventPos, UnityEngine.Random.Range(10f, 20f), (360 / _config.NPCCount * i));
+                Vector3 validPos;
 
-                if (IsValidLocation(spawnLocation, out validPosition, false))
+                if (IsValidLocation(spawnLoc, out validPos))
                 {
-                    SpawnNPC(validPosition, Quaternion.FromToRotation(Vector3.forward, _eventPos));
+                    SpawnNPC(validPos, Quaternion.FromToRotation(Vector3.forward, _eventPos));
                 }
 
                 yield return new WaitForSeconds(0.5f);
@@ -204,21 +231,22 @@ namespace Oxide.Plugins
             if (npc == null) return;
 
             NPCType npcType = _config.NPCTypes.GetRandom();
+            if (npcType == null) return;
             
             npc.enableSaving = false;
             npc._aiDomain.MovementRadius = UnityEngine.Random.Range(50f, npcType.Distance);
-            npc._aiDomain.Movement       = HTNDomain.MovementRule.RestrainedMove;
+            npc._aiDomain.Movement = HTNDomain.MovementRule.RestrainedMove;
+            npc.InitializeHealth(npcType.Health, npcType.Health);
+            npc.displayName = "Guard";
             npc.Spawn();
-            npc._health    = npcType.Health;
-            npc._maxHealth = npcType.Health;
 
             _guards.Add(npc);
 
             if (!_config.UseKit) return;
 
             npc.inventory.Strip();
-            
-            Interface.Oxide.CallHook("GiveKit", npc, npcType.Kit);
+                
+            Interface.Oxide.CallHook("GiveKit", npc, npcType.Kit);                
         }
 
         void SpawnPlane(Vector3 position)
@@ -237,6 +265,7 @@ namespace Oxide.Plugins
             if (_crate == null) return;
 
             _crate.enableSaving = false;
+            _crate.SetWasDropped();
             _crate.Spawn();
             _crate.gameObject.AddComponent<ParachuteComponent>();
         }
@@ -261,7 +290,6 @@ namespace Oxide.Plugins
             _eventPos = position;
 
             SpawnMarker(_eventPos);
-
             SpawnCreate(_eventPos);
 
             timer.In(30f, () => SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI()));
@@ -364,24 +392,24 @@ namespace Oxide.Plugins
 
             for (int i = 0; i < maxTries; i++)
             {
-                Vector3 randomLocation = new Vector3(Core.Random.Range(-wordSize, wordSize), 200f, Core.Random.Range(-wordSize, wordSize));
-                Vector3 validPosition;
+                Vector3 randomPos = new Vector3(Core.Random.Range(-wordSize, wordSize), 200f, Core.Random.Range(-wordSize, wordSize));
+                Vector3 validPos;
 
-                if (!IsValidLocation(randomLocation, out validPosition)) continue;
+                if (!IsValidLocation(randomPos, out validPos)) continue;
 
-                return validPosition;
+                return validPos;
             }
 
             return Vector3.zero;
         }
 
-        bool IsValidLocation(Vector3 location, out Vector3 position, bool nearbyPlayers = true)
+        bool IsValidLocation(Vector3 location, out Vector3 position)
         {
             RaycastHit hit;
 
             if (Physics.Raycast(location + (Vector3.up * 250f), Vector3.down, out hit, Mathf.Infinity, _layerMask))
             {
-                if (IsValidPoint(hit.point, nearbyPlayers))
+                if (!_blockedLayers.Contains(hit.collider.gameObject.layer) && IsValidPoint(hit.point))
                 {
                     position = hit.point;
 
@@ -394,11 +422,9 @@ namespace Oxide.Plugins
             return false;
         }
 
-        bool IsValidPoint(Vector3 point, bool hasPlayers = false)
+        bool IsValidPoint(Vector3 point)
         {
-            if (IsNearMonument(point) 
-            || WaterLevel.Test(point) 
-            || hasPlayers && IsNearPlayer(point))
+            if (IsNearMonument(point) || WaterLevel.Test(point) || IsNearPlayer(point))
             {
                 return false;
             }
@@ -423,7 +449,7 @@ namespace Oxide.Plugins
         {
             foreach(BasePlayer player in BasePlayer.activePlayerList)
             {
-                if (Vector3.Distance(position, player.transform.position) < 50)
+                if (Vector3.Distance(position, player.transform.position) <= 50f)
                 {
                     return true;
                 }
