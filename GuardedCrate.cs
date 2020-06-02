@@ -33,7 +33,7 @@ namespace Oxide.Plugins
         };
 
         List<MonumentInfo> _monuments { get { return TerrainMeta.Path.Monuments; } }
-        EventManager _manager = new EventManager();
+        EventManager _manager;
         PluginConfig _config;
         
         static GuardedCrate Instance;
@@ -84,8 +84,9 @@ namespace Oxide.Plugins
 
         void OnServerInitialized()
         {
-            _manager.StartEventTimer(_config.EventTime, _config.EventLength);
-            _manager.StartEvent(_config.EventLength);
+            _manager = new EventManager(_config.EventTime, _config.EventLength, _config.NPCTypes);
+            _manager.StartEventTimer();
+            _manager.StartEvent();
         }
 
         void Init()
@@ -133,6 +134,7 @@ namespace Oxide.Plugins
         class EventManager
         {
             List<HTNPlayer> _guards = new List<HTNPlayer>();
+            List<NPCType> _npcTypes = new List<NPCType>();
             Vector3 _eventPos = Vector3.zero;
             MapMarkerGenericRadius _marker;
             HackableLockedCrate _crate;
@@ -142,20 +144,30 @@ namespace Oxide.Plugins
             bool _eventActive;
             bool _restainedMove;
 
-            public void StartEventTimer(float eventTime, float eventDuaration)
+            float _eventTime;
+            float _eventLength;
+
+            public EventManager(float eventTime, float eventLength, List<NPCType> npcTypes)
+            {
+                _eventTime = eventTime;
+                _eventLength = eventLength;
+                _npcTypes = npcTypes;
+            }
+
+            public void StartEventTimer()
             {
                 _eventRepeatTimer?.Destroy();
 
-                _eventRepeatTimer = Instance.timer.Every(eventTime, () => StartEvent(eventDuaration));
+                _eventRepeatTimer = Instance.timer.Every(_eventTime, () => StartEvent());
             }
 
-            public void StartEvent(float eventDuaration)
+            public void StartEvent()
             {
                 if (IsEventActive()) return;
 
                 SpawnPlane();
 
-                _eventTimer = Instance.timer.Once(eventDuaration, () => ResetEvent());
+                _eventTimer = Instance.timer.Once(_eventLength, () => ResetEvent());
             }
 
             public void ResetEvent()
@@ -167,7 +179,7 @@ namespace Oxide.Plugins
                 _eventActive = false;
                 _wasLooted = false;
 
-                StartEventTimer(Instance._config.EventTime, Instance._config.EventLength);
+                StartEventTimer();
             }
 
             public void SetLooted(bool wasLooted)
@@ -299,10 +311,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            NPCType GetRandomNPC()
-            {
-                return Instance._config.NPCTypes.GetRandom();
-            }
+            NPCType GetRandomNPC() => Instance._config.NPCTypes.GetRandom();
 
             public void SpawnNPC(NPCType npcType, Vector3 position, Quaternion rotation)
             {
