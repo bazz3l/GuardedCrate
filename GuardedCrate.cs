@@ -71,7 +71,7 @@ namespace Oxide.Plugins
             public float MinMovementRadius;
             public float MaxMovementRadius;
 
-            public NPCType(string kit, float health = 150f, float minMovementRadius = 10f, float maxMovementRadius = 100f)
+            public NPCType(string kit, float health = 150f, float minMovementRadius = 80f, float maxMovementRadius = 120f)
             {
                 Kit = kit;
                 Health = health;
@@ -331,7 +331,6 @@ namespace Oxide.Plugins
                 if (_plane == null)
                 {
                     Destroy(this);
-
                     return;
                 }
 
@@ -343,7 +342,6 @@ namespace Oxide.Plugins
                 if (_plane == null || _plane.IsDestroyed)
                 {
                     Destroy(this);
-
                     return;
                 }
 
@@ -370,15 +368,11 @@ namespace Oxide.Plugins
                 if (_entity == null)
                 {
                     Destroy(this);
-
                     return;
                 }
 
                 _parachute = GameManager.server.CreateEntity(_chutePrefab, _entity.transform.position);
-                if (_parachute == null)
-                {
-                    return;
-                }
+                if (_parachute == null) return;
 
                 _parachute.enableSaving = false;
                 _parachute.SetParent(_entity);
@@ -411,26 +405,6 @@ namespace Oxide.Plugins
             pos.x += radius * Mathf.Sin(angle * Mathf.Deg2Rad);
             pos.z += radius * Mathf.Cos(angle * Mathf.Deg2Rad);
             return pos;
-        }
-
-        Vector3 GetRandomLocation()
-        {
-            float wordSize = MapSize();
-
-            int maxTries = 100;
-
-            while (--maxTries > 0)
-            {
-                Vector3 randomPos = new Vector3(Core.Random.Range(-wordSize, wordSize), 200f, Core.Random.Range(-wordSize, wordSize));
-
-                Vector3 position;
-
-                if (!IsValidLocation(randomPos, true, out position)) continue;
-
-                return position;
-            }
-
-            return Vector3.zero;
         }
 
         bool IsValidLocation(Vector3 location, bool hasPlayers, out Vector3 position)
