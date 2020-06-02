@@ -116,7 +116,7 @@ namespace Oxide.Plugins
 
         object CanLootEntity(BasePlayer player, HackableLockedCrate crate)
         {
-            if (_manager.IsEventLootable(crate.net.ID) && !_manager.IsEventComplete())
+            if (_manager.IsEventLootable(crate.net.ID) && _manager.IsEventActive())
             {
                 player.ChatMessage("<color=#DC143C>Guarded Loot</color>: All guards must be eliminated.");
 
@@ -188,12 +188,7 @@ namespace Oxide.Plugins
 
             public bool IsEventActive()
             {
-                return _eventActive;
-            }
-
-            public bool IsEventComplete()
-            {
-                return _guards.Count <= 0;
+                return _eventActive && _guards.Count > 0;
             }
 
             public void RemoveNPC(HTNPlayer npc)
@@ -202,7 +197,7 @@ namespace Oxide.Plugins
 
                 _guards.Remove(npc);
 
-                if (!IsEventComplete()) return;
+                if (IsEventActive()) return;
 
                 ResetEvent(true);
 
