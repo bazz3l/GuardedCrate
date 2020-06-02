@@ -276,18 +276,33 @@ namespace Oxide.Plugins
             {
                 for (int i = 0; i < Instance._config.NPCCount; i++)
                 {
-                    Vector3 spawnLoc = Instance.RandomCircle(_eventPos, UnityEngine.Random.Range(10f, 20f), (360 / Instance._config.NPCCount * i));
-                    Vector3 validPos = Vector3.zero;
-
-                    if (Instance.IsValidLocation(spawnLoc, false, out validPos))
-                    {
-                        SpawnNPC(Instance._config.NPCTypes.GetRandom(), validPos, Quaternion.FromToRotation(Vector3.forward, _eventPos));              
-                    }
+                    TrySpawnNPC(i);
 
                     yield return new WaitForSeconds(0.5f);
                 }
 
                 yield return null;
+            }
+
+            public void TrySpawnNPC(int num)
+            {
+                Vector3 spawnPosition = Vector3.zero;
+
+                for (int i = 0; i < 10; i++)
+                {
+                    Vector3 position = Instance.RandomCircle(_eventPos, 10f, (360 / Instance._config.NPCCount * num));
+
+                    if (Instance.IsValidLocation(position, false, out spawnPosition)) break;
+                }
+
+                if (spawnPosition == Vector3.zero) return;
+
+                SpawnNPC(GetRandomNPC(), spawnPosition, Quaternion.FromToRotation(Vector3.forward, _eventPos));
+            }
+
+            NPCType GetRandomNPC()
+            {
+                return Instance._config.NPCTypes.GetRandom();
             }
 
             public void SpawnNPC(NPCType npcType, Vector3 position, Quaternion rotation)
