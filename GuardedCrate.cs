@@ -286,18 +286,19 @@ namespace Oxide.Plugins
 
             public void TrySpawnNPC(int num)
             {
-                Vector3 spawnPosition = Vector3.zero;
+                Vector3 spawnPosition;
 
                 for (int i = 0; i < 10; i++)
                 {
                     Vector3 position = Instance.RandomCircle(_eventPos, 10f, (360 / Instance._config.NPCCount * num));
 
-                    if (Instance.IsValidLocation(position, false, out spawnPosition)) break;
+                    if (Instance.IsValidLocation(position, false, out spawnPosition))
+                    {
+                        SpawnNPC(GetRandomNPC(), spawnPosition, Quaternion.FromToRotation(Vector3.forward, _eventPos));
+                        
+                        return;
+                    }
                 }
-
-                if (spawnPosition == Vector3.zero) return;
-
-                SpawnNPC(GetRandomNPC(), spawnPosition, Quaternion.FromToRotation(Vector3.forward, _eventPos));
             }
 
             NPCType GetRandomNPC()
