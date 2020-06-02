@@ -104,10 +104,14 @@ namespace Oxide.Plugins
         object CanBuild(Planner planner, Construction prefab, Construction.Target target)
         {
             BasePlayer player = planner.GetOwnerPlayer();
-            if (player != null && _manager.BuildBlocked(player.ServerPosition))
+            if (player == null)
+            {
+                return null;
+            }
+
+            if (_manager.IsEventActive() && _manager.BuildBlocked(player.ServerPosition))
             {
                 player.ChatMessage("<color=#DC143C>Guarded Loot</color>: Event active in this area building blocked.");
-
                 return false;
             }
 
@@ -116,10 +120,9 @@ namespace Oxide.Plugins
 
         object CanLootEntity(BasePlayer player, HackableLockedCrate crate)
         {
-            if (_manager.IsEventLootable(crate.net.ID) && _manager.IsEventActive())
+            if (_manager.IsEventActive() && _manager.IsEventLootable(crate.net.ID))
             {
                 player.ChatMessage("<color=#DC143C>Guarded Loot</color>: All guards must be eliminated.");
-
                 return false;
             }
 
