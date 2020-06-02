@@ -110,7 +110,7 @@ namespace Oxide.Plugins
                 return null;
             }
 
-            if (_manager.IsEventActive() && _manager.BuildBlocked(player.ServerPosition))
+            if (_manager.IsEventActive() && _manager.IsBuildBlocked(player.ServerPosition))
             {
                 player.ChatMessage("<color=#DC143C>Guarded Loot</color>: Event active in this area building blocked.");
                 return false;
@@ -195,6 +195,11 @@ namespace Oxide.Plugins
                 return _eventActive && _guards.Count > 0;
             }
 
+            public bool IsBuildBlocked(Vector3 position)
+            {
+                return _eventActive && Vector3Ex.Distance2D(_eventPos, position) <= 20f;
+            }
+
             public void RemoveNPC(HTNPlayer npc)
             {
                 if (!_guards.Contains(npc)) return;
@@ -202,6 +207,17 @@ namespace Oxide.Plugins
                 _guards.Remove(npc);
 
                 if (IsEventActive()) return;
+
+                OpenCrate();
+
+                ResetEvent(true);
+
+                Instance.MessageAll($"<color=#DC143C>Guarded Loot</color>: Event completed, crate is now open loot up fast.");
+            }
+
+            void OpenCrate()
+            {
+                if (_crate == null) return;
 
                 if (!_crate.IsBeingHacked())
                 {
@@ -215,15 +231,6 @@ namespace Oxide.Plugins
                     _crate.isLootable = true;
                     _crate.CancelInvoke(new Action(_crate.HackProgress));
                 }
-
-                ResetEvent(true);
-
-                Instance.MessageAll($"<color=#DC143C>Guarded Loot</color>: Event completed, crate is now open loot up fast.");
-            }
-
-            public bool BuildBlocked(Vector3 position)
-            {
-                return _eventActive && Vector3Ex.Distance2D(_eventPos, position) <= 20f;
             }
 
             void DestroyGuards()
