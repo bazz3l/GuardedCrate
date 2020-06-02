@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System;
 using Oxide.Core.Plugins;
 using Oxide.Core;
 using Rust.Ai.HTN;
@@ -202,9 +203,14 @@ namespace Oxide.Plugins
 
                 if (IsEventActive()) return;
 
+                _crate.RefreshDecay();
+                _crate.SetFlag(BaseEntity.Flags.Reserved2, true, false, true);
+                _crate.isLootable = true;
+                _crate.CancelInvoke(new Action(_crate.HackProgress));
+
                 ResetEvent(true);
 
-                Instance.MessageAll($"<color=#DC143C>Guarded Loot</color>: Event completed, loot up fast.");
+                Instance.MessageAll($"<color=#DC143C>Guarded Loot</color>: Event completed, crate is now open loot up fast.");
             }
 
             public bool BuildBlocked(Vector3 position)
