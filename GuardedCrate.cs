@@ -160,7 +160,6 @@ namespace Oxide.Plugins
             Timer _eventRepeatTimer;
             Timer _eventTimer;
             bool _eventActive;
-            bool _wasLooted;
             bool _restainedMove;
 
             float _eventTime;
@@ -198,7 +197,6 @@ namespace Oxide.Plugins
                 DestroyGuards();
 
                 _eventActive = false;
-                _wasLooted = false;
 
                 StartEventTimer();
             }
