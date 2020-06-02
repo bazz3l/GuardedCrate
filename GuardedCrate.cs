@@ -244,21 +244,13 @@ namespace Oxide.Plugins
                 CargoPlane cargoplane = GameManager.server.CreateEntity(_cargoPrefab) as CargoPlane;
                 if (cargoplane == null) return;
 
-                cargoplane.InitDropPosition(_eventPos);
+                //cargoplane.InitDropPosition(_eventPos);
                 cargoplane.Spawn();
                 cargoplane.gameObject.AddComponent<PlaneComponent>();
             }
 
             public void SpawnCreate()
             {
-                _crate = GameManager.server.CreateEntity(_cratePrefab, _eventPos, Quaternion.identity) as HackableLockedCrate;
-                if (_crate == null) return;
-
-                _crate.enableSaving = false;
-                _crate.SetWasDropped();
-                _crate.Spawn();
-                _crate.gameObject.AddComponent<ParachuteComponent>();
-
                 _marker = GameManager.server.CreateEntity(_markerPrefab, _eventPos) as MapMarkerGenericRadius;
                 if (_marker == null) return;
 
@@ -270,6 +262,14 @@ namespace Oxide.Plugins
                 _marker.Spawn();
                 _marker.transform.localPosition = Vector3.zero;
                 _marker.SendUpdate(true);
+
+                _crate = GameManager.server.CreateEntity(_cratePrefab, _eventPos, Quaternion.identity) as HackableLockedCrate;
+                if (_crate == null) return;
+
+                _crate.enableSaving = false;
+                _crate.SetWasDropped();
+                _crate.Spawn();
+                _crate.gameObject.AddComponent<ParachuteComponent>();
             }
 
             IEnumerator<object> SpawnAI()
