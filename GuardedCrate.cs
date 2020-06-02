@@ -203,6 +203,8 @@ namespace Oxide.Plugins
 
                 if (IsEventActive()) return;
 
+                if (!_crate.IsBeingHacked()) _crate.StartHacking();
+                
                 _crate.RefreshDecay();
                 _crate.SetFlag(BaseEntity.Flags.Reserved2, true, false, true);
                 _crate.isLootable = true;
