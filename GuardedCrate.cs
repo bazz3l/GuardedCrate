@@ -175,6 +175,8 @@ namespace Oxide.Plugins
 
             public void ResetEvent(bool completed = false)
             {
+                if (completed) OpenCrate();
+
                 DestroyCrate(completed);
                 DestroyTimers();
                 DestroyGuards();
@@ -207,8 +209,6 @@ namespace Oxide.Plugins
                 _guards.Remove(npc);
 
                 if (IsEventActive()) return;
-
-                OpenCrate();
 
                 ResetEvent(true);
 
