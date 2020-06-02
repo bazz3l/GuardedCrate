@@ -264,13 +264,8 @@ namespace Oxide.Plugins
                     _crate?.Kill();
                 }
 
-                if (_marker != null && !_marker.IsDestroyed)
-                {
-                    _marker?.Kill();
-                }
-                
-                _crate = null;
                 _marker = null;
+                _crate = null;
             }
 
             void DestroyTimers()
@@ -323,6 +318,8 @@ namespace Oxide.Plugins
                 _crate.SetWasDropped();
                 _crate.Spawn();
                 _crate.gameObject.AddComponent<ParachuteComponent>();
+
+                _marker.SetParent(_crate);
             }
 
             IEnumerator<object> SpawnAI()
