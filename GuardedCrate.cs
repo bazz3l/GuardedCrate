@@ -82,9 +82,7 @@ namespace Oxide.Plugins
         class GuardSetting
         {
             public string KitName;
-
             public float MinMovementRadius;
-
             public float MaxMovementRadius;
 
             public GuardSetting(string kitName, float minMovementRadius = 120f, float maxMovementRadius = 150f)
