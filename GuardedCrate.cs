@@ -198,7 +198,7 @@ namespace Oxide.Plugins
 
             public void RemoveNPC(HTNPlayer npc)
             {
-                if (_guards.Contains(npc)) return;
+                if (!_guards.Contains(npc)) return;
 
                 _guards.Remove(npc);
 
@@ -213,8 +213,6 @@ namespace Oxide.Plugins
             {
                 return _eventActive && Vector3Ex.Distance2D(_eventPos, position) <= 20f;
             }
-
-            NPCType GetRandomNPC() => _npcTypes.GetRandom();
 
             void DestroyGuards()
             {
@@ -348,6 +346,7 @@ namespace Oxide.Plugins
             }
 
             HTNDomain.MovementRule GetMovementRule() => HTNDomain.MovementRule.FreeMove;
+            NPCType GetRandomNPC() => _npcTypes.GetRandom();
         }
 
         class PlaneComponent : MonoBehaviour
