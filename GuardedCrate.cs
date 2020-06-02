@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System;
+using Newtonsoft.Json;
 using Oxide.Core.Plugins;
 using Oxide.Core;
 using Rust.Ai.HTN;
@@ -46,32 +47,47 @@ namespace Oxide.Plugins
             return new PluginConfig
             {
                 EventTime = 3600f,
-                EventLength = 1800f,
+                EventDuration = 1800f,
                 NPCCount = 15,
-                UseKit = true,
-                NPCTypes = new List<NPCType> {
-                    new NPCType("guard", 150f),
-                    new NPCType("guard-heavy", 300f)
+                UseKits = true,
+                OpenCrate = true,
+                GuardSettings = new List<GuardSetting> {
+                    new GuardSetting("guard"),
+                    new GuardSetting("guard-heavy")
                 }
             };
         }
 
         class PluginConfig
         {
+            [JsonProperty(PropertyName = "NPCCount (total number of guards to spawn)")]
             public int NPCCount;
+
+            [JsonProperty(PropertyName = "EventTime, how often the event should start")]
             public float EventTime;
-            public float EventLength;
-            public bool UseKit;
-            public List<NPCType> NPCTypes;
+
+            [JsonProperty(PropertyName = "EventDuration, how long the event lasts")]
+            public float EventDuration;
+
+            [JsonProperty(PropertyName = "UseKits, should guard spawn with kits")]
+            public bool UseKits;
+
+            [JsonProperty(PropertyName = "OpenCrate, should guard spawn with kits")]
+            public bool OpenCrate;
+
+            [JsonProperty(PropertyName = "GuardSettings, guard settings min-max roam distance and kit name")]
+            public List<GuardSetting> GuardSettings;
         }
 
-        class NPCType
+        class GuardSetting
         {
             public string KitName;
+
             public float MinMovementRadius;
+
             public float MaxMovementRadius;
 
-            public NPCType(string kitName, float minMovementRadius = 120f, float maxMovementRadius = 150f)
+            public GuardSetting(string kitName, float minMovementRadius = 120f, float maxMovementRadius = 150f)
             {
                 KitName = kitName;
                 MinMovementRadius = minMovementRadius;
@@ -85,7 +101,7 @@ namespace Oxide.Plugins
 
         void OnServerInitialized()
         {
-            _manager = new EventManager(_config.EventTime, _config.EventLength, _config.NPCTypes);
+            _manager = new EventManager(_config.EventTime, _config.EventDuration, _config.GuardSettings);
             _manager.StartEventTimer();
             _manager.StartEvent();
         }
@@ -137,23 +153,23 @@ namespace Oxide.Plugins
         class EventManager
         {
             List<HTNPlayer> _guards = new List<HTNPlayer>();
-            List<NPCType> _npcTypes = new List<NPCType>();
+            List<GuardSetting> _npcTypes = new List<GuardSetting>();
             Vector3 _eventPos = Vector3.zero;
             MapMarkerGenericRadius _marker;
             HackableLockedCrate _crate;
             Timer _eventRepeatTimer;          
             Timer _eventTimer;
-            bool _eventActive;            
+            bool _eventActive;
             bool _wasLooted;
             bool _restainedMove;
 
             float _eventTime;
-            float _eventLength;
+            float _eventDuration;
 
-            public EventManager(float eventTime, float eventLength, List<NPCType> npcTypes)
+            public EventManager(float eventTime, float eventDuration, List<GuardSetting> npcTypes)
             {
                 _eventTime = eventTime;
-                _eventLength = eventLength;
+                _eventDuration = eventDuration;
                 _npcTypes = npcTypes;
             }
 
@@ -170,7 +186,7 @@ namespace Oxide.Plugins
 
                 SpawnPlane();
 
-                _eventTimer = Instance.timer.Once(_eventLength, () => ResetEvent());
+                _eventTimer = Instance.timer.Once(_eventDuration, () => ResetEvent());
             }
 
             public void ResetEvent(bool completed = false)
@@ -217,7 +233,7 @@ namespace Oxide.Plugins
 
             void OpenCrate()
             {
-                if (_crate == null) return;
+                if (_crate == null || !Instance._config.OpenCrate) return;
 
                 if (!_crate.IsBeingHacked())
                 {
@@ -325,7 +341,7 @@ namespace Oxide.Plugins
                 yield return null;
             }
 
-            public void SpawnNPC(NPCType npcType, Vector3 position, Quaternion rotation)
+            public void SpawnNPC(GuardSetting npcType, Vector3 position, Quaternion rotation)
             {
                 HTNPlayer component = GameManager.server.CreateEntity(_npcPrefab, position, rotation) as HTNPlayer;
                 if (component == null) return;
@@ -335,7 +351,7 @@ namespace Oxide.Plugins
                 component._aiDomain.MovementRadius = UnityEngine.Random.Range(npcType.MinMovementRadius, npcType.MaxMovementRadius);
                 component._aiDomain.Movement = GetMovementRule();
                 
-                if (Instance._config.UseKit)
+                if (Instance._config.UseKits)
                 {
                     Interface.Oxide.CallHook("GiveKit", component, npcType.KitName);
                 }
@@ -354,7 +370,7 @@ namespace Oxide.Plugins
                 SpawnNPC(GetRandomNPC(), spawnPosition, Quaternion.FromToRotation(Vector3.forward, _eventPos));
             }
 
-            NPCType GetRandomNPC() => _npcTypes.GetRandom();
+            GuardSetting GetRandomNPC() => _npcTypes.GetRandom();
 
             HTNDomain.MovementRule GetMovementRule() => HTNDomain.MovementRule.FreeMove;
         }
