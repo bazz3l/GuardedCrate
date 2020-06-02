@@ -459,7 +459,7 @@ namespace Oxide.Plugins
                 return false;
             }
 
-            if (WaterLevel.Test(hit.point) || _blockedLayers.Contains(hit.collider.gameObject.layer) || hit.collider.name.Contains("rock"))
+            if (_blockedLayers.Contains(hit.collider.gameObject.layer) || hit.collider.name.Contains("rock"))
             {
                 position = Vector3.zero;
                 return false;
