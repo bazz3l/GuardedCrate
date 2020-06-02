@@ -101,33 +101,32 @@ namespace Oxide.Plugins
             _manager.ResetEvent();
         }
 
-        void OnLootEntity(BasePlayer player, HackableLockedCrate crate)
-        {
-            if (crate == null || !_manager.IsEventLootable(crate.net.ID)) return;
-
-            _manager.SetLooted(true);
-            _manager.ResetEvent();
-
-            MessageAll($"<color=#DC143C>Guarded Loot</color>: ({player.displayName}) completed the event.");
-        }
-
         object CanBuild(Planner planner, Construction prefab, Construction.Target target)
         {
-            BasePlayer player = planner?.GetOwnerPlayer();
-            if (player == null)
+            BasePlayer player = planner.GetOwnerPlayer();
+            if (player != null && _manager.BuildBlocked(player.ServerPosition))
             {
-                return null;
-            }
-
-            if (_manager.BuildBlocked(player.ServerPosition))
-            {
-                player.ChatMessage("<color=#DC143C>Guarded Loot</color>: You can't build here.");
+                player.ChatMessage("<color=#DC143C>Guarded Loot</color>: Event active in this area building blocked.");
 
                 return false;
             }
 
             return null;
         }
+
+        object CanLootEntity(BasePlayer player, HackableLockedCrate crate)
+        {
+            if (_manager.IsEventLootable(crate.net.ID) && !_manager.IsEventComplete())
+            {
+                player.ChatMessage("<color=#DC143C>Guarded Loot</color>: All guards must be eliminated.");
+
+                return false;
+            }
+
+            return null;
+        }
+
+        void OnEntityDeath(HTNPlayer npc, HitInfo info) => _manager.RemoveNPC(npc);
         #endregion
 
         #region Core
@@ -138,10 +137,10 @@ namespace Oxide.Plugins
             Vector3 _eventPos = Vector3.zero;
             MapMarkerGenericRadius _marker;
             HackableLockedCrate _crate;
+            Timer _eventRepeatTimer;          
             Timer _eventTimer;
-            Timer _eventRepeatTimer;
+            bool _eventActive;            
             bool _wasLooted;
-            bool _eventActive;
             bool _restainedMove;
 
             float _eventTime;
@@ -170,9 +169,9 @@ namespace Oxide.Plugins
                 _eventTimer = Instance.timer.Once(_eventLength, () => ResetEvent());
             }
 
-            public void ResetEvent()
+            public void ResetEvent(bool completed = false)
             {
-                DestroyCrate(_wasLooted);
+                DestroyCrate(completed);
                 DestroyTimers();
                 DestroyGuards();
 
@@ -180,11 +179,6 @@ namespace Oxide.Plugins
                 _wasLooted = false;
 
                 StartEventTimer();
-            }
-
-            public void SetLooted(bool wasLooted)
-            {
-                _wasLooted = wasLooted;
             }
 
             public bool IsEventLootable(uint id)
@@ -197,10 +191,30 @@ namespace Oxide.Plugins
                 return _eventActive;
             }
 
+            public bool IsEventComplete()
+            {
+                return _guards.Count <= 0;
+            }
+
+            public void RemoveNPC(HTNPlayer npc)
+            {
+                if (_guards.Contains(npc)) return;
+
+                _guards.Remove(npc);
+
+                if (!IsEventComplete()) return;
+
+                ResetEvent(true);
+
+                Instance.MessageAll($"<color=#DC143C>Guarded Loot</color>: Event completed, loot up fast.");
+            }
+
             public bool BuildBlocked(Vector3 position)
             {
                 return _eventActive && Vector3Ex.Distance2D(_eventPos, position) <= 20f;
             }
+
+            NPCType GetRandomNPC() => _npcTypes.GetRandom();
 
             void DestroyGuards()
             {
@@ -214,9 +228,9 @@ namespace Oxide.Plugins
                 _guards.Clear();
             }
 
-            void DestroyCrate(bool wasLooted = false)
+            void DestroyCrate(bool completed = false)
             {
-                if (_crate != null && !_crate.IsDestroyed && !wasLooted)
+                if (_crate != null && !_crate.IsDestroyed && !completed)
                 {
                     _crate?.Kill();
                 }
@@ -251,12 +265,12 @@ namespace Oxide.Plugins
 
             public void SpawnPlane()
             {
-                CargoPlane cargoplane = GameManager.server.CreateEntity(_cargoPrefab) as CargoPlane;
-                if (cargoplane == null) return;
+                CargoPlane plane  = GameManager.server.CreateEntity(_cargoPrefab) as CargoPlane;
+                if (plane == null) return;
 
-                //cargoplane.InitDropPosition(_eventPos);
-                cargoplane.Spawn();
-                cargoplane.gameObject.AddComponent<PlaneComponent>();
+                //plane.InitDropPosition(_eventPos);
+                plane.Spawn();
+                plane.gameObject.AddComponent<PlaneComponent>();
             }
 
             public void SpawnCreate()
@@ -310,8 +324,6 @@ namespace Oxide.Plugins
                     }
                 }
             }
-
-            NPCType GetRandomNPC() => _npcTypes.GetRandom();
 
             public void SpawnNPC(NPCType npcType, Vector3 position, Quaternion rotation)
             {
@@ -399,6 +411,8 @@ namespace Oxide.Plugins
                 _parachute.Spawn();
 
                 Rigidbody rb = _entity.GetComponent<Rigidbody>();
+                if (rb == null) return;
+
                 rb.useGravity = true;
                 rb.drag = 1.2f;
             }
@@ -412,6 +426,20 @@ namespace Oxide.Plugins
 
                 Destroy(this);
             }
+        }
+        #endregion
+
+        #region Commands
+        [ChatCommand("ggrespawn")]
+        void GGRespawn(BasePlayer player, string command, string[] args)
+        {
+            if (!player.IsAdmin) return;
+
+            if (_manager.IsEventActive()) _manager.ResetEvent();
+
+            _manager.StartEvent();
+
+            player.ChatMessage("<color=#DC143C>Guarded Crate</color>: Event reset.");
         }
         #endregion
 
