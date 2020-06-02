@@ -66,15 +66,13 @@ namespace Oxide.Plugins
 
         class NPCType
         {
-            public string Kit;
-            public float Health;
+            public string KitName;
             public float MinMovementRadius;
             public float MaxMovementRadius;
 
-            public NPCType(string kit, float health = 150f, float minMovementRadius = 80f, float maxMovementRadius = 120f)
+            public NPCType(string kitName, float minMovementRadius = 120f, float maxMovementRadius = 150f)
             {
-                Kit = kit;
-                Health = health;
+                KitName = kitName;
                 MinMovementRadius = minMovementRadius;
                 MaxMovementRadius = maxMovementRadius;
             }
@@ -318,27 +316,23 @@ namespace Oxide.Plugins
                 if (component == null) return;
 
                 component._aiDomain.MovementRadius = UnityEngine.Random.Range(npcType.MinMovementRadius, npcType.MaxMovementRadius);
-                component._aiDomain.NavAgent.speed = Mathf.Lerp(component._aiDomain.NavAgent.speed, 5f, 5f);
-                component._aiDomain.Movement       = GetMovementRule();
+                component._aiDomain.Movement = GetMovementRule();
                 
                 if (Instance._config.UseKit)
                 {
-                    Interface.Oxide.CallHook("GiveKit", component, npcType.Kit);
+                    Interface.Oxide.CallHook("GiveKit", component, npcType.KitName);
                 }
 
                 _guards.Add(component);
             }
 
-            HTNDomain.MovementRule GetMovementRule()
-            {
-                return _restainedMove ? HTNDomain.MovementRule.RestrainedMove : HTNDomain.MovementRule.FreeMove;
-            }
+            HTNDomain.MovementRule GetMovementRule() => HTNDomain.MovementRule.FreeMove;
         }
 
         class PlaneComponent : MonoBehaviour
         {
-            CargoPlane _plane;
             Vector3 _lastPosition;
+            CargoPlane _plane;
             bool _hasDropped;
 
             void Awake()
@@ -430,19 +424,16 @@ namespace Oxide.Plugins
             if (!Physics.Raycast(location + (Vector3.up * 250f), Vector3.down, out hit, Mathf.Infinity, _allowedLayers))
             {
                 position = Vector3.zero;
-
                 return false;
             }
 
             if (!IsValidPoint(hit.point, hasPlayers) || _blockedLayers.Contains(hit.collider.gameObject.layer) || hit.collider.name.Contains("_rock"))
             {
                 position = Vector3.zero;
-
                 return false;
             }
 
             position = hit.point;
-
             return true;
         }
 
