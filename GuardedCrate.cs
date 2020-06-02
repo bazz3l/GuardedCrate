@@ -48,9 +48,9 @@ namespace Oxide.Plugins
             {
                 EventTime = 3600f,
                 EventDuration = 1800f,
-                NPCCount = 15,
-                UseKits = true,
                 OpenCrate = true,
+                UseKits = true,
+                GuardCount = 15,
                 GuardSettings = new List<GuardSetting> {
                     new GuardSetting("guard"),
                     new GuardSetting("guard-heavy")
@@ -60,9 +60,6 @@ namespace Oxide.Plugins
 
         class PluginConfig
         {
-            [JsonProperty(PropertyName = "NPCCount (total number of guards to spawn)")]
-            public int NPCCount;
-
             [JsonProperty(PropertyName = "EventTime (how often the event should start)")]
             public float EventTime;
 
@@ -74,7 +71,10 @@ namespace Oxide.Plugins
 
             [JsonProperty(PropertyName = "OpenCrate (should crate open once guards are all eliminated)")]
             public bool OpenCrate;
-            
+
+            [JsonProperty(PropertyName = "GuardCount (total number of guards to spawn)")]
+            public int GuardCount;
+
             [JsonProperty(PropertyName = "GuardSettings (min/max roam distance and kit name)")]
             public List<GuardSetting> GuardSettings;
         }
@@ -331,7 +331,7 @@ namespace Oxide.Plugins
 
             IEnumerator<object> SpawnAI()
             {
-                for (int i = 0; i < Instance._config.NPCCount; i++)
+                for (int i = 0; i < Instance._config.GuardCount; i++)
                 {
                     TrySpawnNPC(i);
 
@@ -363,7 +363,7 @@ namespace Oxide.Plugins
             {
                 Vector3 spawnPosition;
 
-                Vector3 position = Instance.RandomCircle(_eventPos, 10f, (360 / Instance._config.NPCCount * num));
+                Vector3 position = Instance.RandomCircle(_eventPos, 10f, (360 / Instance._config.GuardCount * num));
 
                 if (!Instance.IsValidLocation(position, out spawnPosition)) return;
 
