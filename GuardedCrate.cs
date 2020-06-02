@@ -347,21 +347,16 @@ namespace Oxide.Plugins
             {
                 Vector3 spawnPosition;
 
-                for (int i = 0; i < 10; i++)
-                {
-                    Vector3 position = Instance.RandomCircle(_eventPos, 10f, (360 / Instance._config.NPCCount * num));
+                Vector3 position = Instance.RandomCircle(_eventPos, 10f, (360 / Instance._config.NPCCount * num));
 
-                    if (Instance.IsValidLocation(position, out spawnPosition))
-                    {
-                        SpawnNPC(GetRandomNPC(), spawnPosition, Quaternion.FromToRotation(Vector3.forward, _eventPos));
-                        
-                        return;
-                    }
-                }
+                if (!Instance.IsValidLocation(position, out spawnPosition)) return;
+
+                SpawnNPC(GetRandomNPC(), spawnPosition, Quaternion.FromToRotation(Vector3.forward, _eventPos));
             }
 
-            HTNDomain.MovementRule GetMovementRule() => HTNDomain.MovementRule.FreeMove;
             NPCType GetRandomNPC() => _npcTypes.GetRandom();
+
+            HTNDomain.MovementRule GetMovementRule() => HTNDomain.MovementRule.FreeMove;
         }
 
         class PlaneComponent : MonoBehaviour
