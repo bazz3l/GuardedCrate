@@ -63,19 +63,19 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "NPCCount (total number of guards to spawn)")]
             public int NPCCount;
 
-            [JsonProperty(PropertyName = "EventTime, how often the event should start")]
+            [JsonProperty(PropertyName = "EventTime (how often the event should start)")]
             public float EventTime;
 
-            [JsonProperty(PropertyName = "EventDuration, how long the event lasts")]
+            [JsonProperty(PropertyName = "EventDuration (how long the event lasts)")]
             public float EventDuration;
 
-            [JsonProperty(PropertyName = "UseKits, should guard spawn with kits")]
+            [JsonProperty(PropertyName = "UseKits (should guard spawn with a kit)")]
             public bool UseKits;
 
-            [JsonProperty(PropertyName = "OpenCrate, should guard spawn with kits")]
+            [JsonProperty(PropertyName = "OpenCrate (should crate open once guards are all eliminated)")]
             public bool OpenCrate;
-
-            [JsonProperty(PropertyName = "GuardSettings, guard settings min-max roam distance and kit name")]
+            
+            [JsonProperty(PropertyName = "GuardSettings (min/max roam distance and kit name)")]
             public List<GuardSetting> GuardSettings;
         }
 
