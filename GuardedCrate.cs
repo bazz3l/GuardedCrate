@@ -261,12 +261,12 @@ namespace Oxide.Plugins
 
             public void SpawnPlane()
             {
-                CargoPlane plane  = GameManager.server.CreateEntity(_cargoPrefab) as CargoPlane;
-                if (plane == null) return;
+                CargoPlane component  = GameManager.server.CreateEntity(_cargoPrefab) as CargoPlane;
+                if (component == null) return;
 
-                //plane.InitDropPosition(_eventPos);
-                plane.Spawn();
-                plane.gameObject.AddComponent<PlaneComponent>();
+                //component.InitDropPosition(_eventPos);
+                component.Spawn();
+                component.gameObject.AddComponent<PlaneComponent>();
             }
 
             public void SpawnCreate()
@@ -304,6 +304,24 @@ namespace Oxide.Plugins
                 yield return null;
             }
 
+            public void SpawnNPC(NPCType npcType, Vector3 position, Quaternion rotation)
+            {
+                HTNPlayer component = GameManager.server.CreateEntity(_npcPrefab, position, rotation) as HTNPlayer;
+                if (component == null) return;
+
+                component.enableSaving = false;
+                component.Spawn();
+                component._aiDomain.MovementRadius = UnityEngine.Random.Range(npcType.MinMovementRadius, npcType.MaxMovementRadius);
+                component._aiDomain.Movement = GetMovementRule();
+                
+                if (Instance._config.UseKit)
+                {
+                    Interface.Oxide.CallHook("GiveKit", component, npcType.KitName);
+                }
+
+                _guards.Add(component);
+            }
+
             public void TrySpawnNPC(int num)
             {
                 Vector3 spawnPosition;
@@ -319,28 +337,6 @@ namespace Oxide.Plugins
                         return;
                     }
                 }
-            }
-
-            public void SpawnNPC(NPCType npcType, Vector3 position, Quaternion rotation)
-            {
-                BaseEntity entity = GameManager.server.CreateEntity(_npcPrefab, position, rotation);
-                if (entity == null) return;
-
-                entity.enableSaving = false;
-                entity.Spawn();
-
-                HTNPlayer component = entity.GetComponent<HTNPlayer>();
-                if (component == null) return;
-
-                component._aiDomain.MovementRadius = UnityEngine.Random.Range(npcType.MinMovementRadius, npcType.MaxMovementRadius);
-                component._aiDomain.Movement = GetMovementRule();
-                
-                if (Instance._config.UseKit)
-                {
-                    Interface.Oxide.CallHook("GiveKit", component, npcType.KitName);
-                }
-
-                _guards.Add(component);
             }
 
             HTNDomain.MovementRule GetMovementRule() => HTNDomain.MovementRule.FreeMove;
