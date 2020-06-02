@@ -357,19 +357,23 @@ namespace Oxide.Plugins
 
             public void TrySpawnNPC(int num)
             {
-                Vector3 spawnPosition;
-
                 Vector3 position = Instance.RandomCircle(_eventPos, 10f, (360 / Instance._config.GuardCount * num));
 
-                if (Instance.IsValidLocation(position, out spawnPosition))
-                {
-                    SpawnNPC(GetRandomNPC(), spawnPosition, Quaternion.FromToRotation(Vector3.forward, _eventPos));
-                }
+                if (!Instance.IsValidLocation(position, out position)) return;
+
+                SpawnNPC(GetRandomNPC(), position, Quaternion.FromToRotation(Vector3.forward, _eventPos));
             }
 
             GuardSetting GetRandomNPC() => _guardTypes.GetRandom();
 
             HTNDomain.MovementRule GetMovementRule() => HTNDomain.MovementRule.FreeMove;
+
+            Vector3 GetRandomPosition()
+            {
+                SpawnHandler handler = new SpawnHandler();
+
+                return Vector3.zero;
+            }
         }
 
         class PlaneComponent : MonoBehaviour
@@ -452,14 +456,19 @@ namespace Oxide.Plugins
         #endregion
 
         #region Commands
-        [ChatCommand("ggrespawn")]
-        void GGRespawn(BasePlayer player, string command, string[] args)
+        [ConsoleCommand("gcreset")]
+        void GGRespawn(ConsoleSystem.Arg arg)
         {
-            if (!player.IsAdmin) return;
+            BasePlayer player = arg?.Player();
+            if (player != null)
+            {
+                arg.ReplyWith("You do not have permission to do that.");
+                return;
+            }
 
             _manager.ResetEvent();
 
-            player.ChatMessage("<color=#DC143C>Guarded Crate</color>: Event reset.");
+            arg.ReplyWith("Event reset.");
         }
         #endregion
 
