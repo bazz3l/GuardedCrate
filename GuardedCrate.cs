@@ -296,8 +296,7 @@ namespace Oxide.Plugins
             {
                 CargoPlane component  = GameManager.server.CreateEntity(_cargoPrefab) as CargoPlane;
                 if (component == null) return;
-
-                //component.InitDropPosition(_eventPos);
+                
                 component.Spawn();
                 component.gameObject.AddComponent<PlaneComponent>();
             }
@@ -337,19 +336,19 @@ namespace Oxide.Plugins
                 yield return null;
             }
 
-            public void SpawnNPC(GuardSetting npcType, Vector3 position, Quaternion rotation)
+            public void SpawnNPC(GuardSetting guardSetting, Vector3 position, Quaternion rotation)
             {
                 HTNPlayer component = GameManager.server.CreateEntity(_npcPrefab, position, rotation) as HTNPlayer;
                 if (component == null) return;
 
                 component.enableSaving = false;
                 component.Spawn();
-                component._aiDomain.MovementRadius = UnityEngine.Random.Range(npcType.MinMovementRadius, npcType.MaxMovementRadius);
+                component._aiDomain.MovementRadius = UnityEngine.Random.Range(guardSetting.MinMovementRadius, guardSetting.MaxMovementRadius);
                 component._aiDomain.Movement = GetMovementRule();
                 
                 if (Instance._config.UseKits)
                 {
-                    Interface.Oxide.CallHook("GiveKit", component, npcType.KitName);
+                    Interface.Oxide.CallHook("GiveKit", component, guardSetting.KitName);
                 }
 
                 _guards.Add(component);
@@ -361,9 +360,10 @@ namespace Oxide.Plugins
 
                 Vector3 position = Instance.RandomCircle(_eventPos, 10f, (360 / Instance._config.GuardCount * num));
 
-                if (!Instance.IsValidLocation(position, out spawnPosition)) return;
-
-                SpawnNPC(GetRandomNPC(), spawnPosition, Quaternion.FromToRotation(Vector3.forward, _eventPos));
+                if (Instance.IsValidLocation(position, out spawnPosition))
+                {
+                    SpawnNPC(GetRandomNPC(), spawnPosition, Quaternion.FromToRotation(Vector3.forward, _eventPos));
+                }
             }
 
             GuardSetting GetRandomNPC() => _guardTypes.GetRandom();
