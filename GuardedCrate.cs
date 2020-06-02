@@ -126,6 +126,7 @@ namespace Oxide.Plugins
             if (_manager.IsEventActive() && _manager.IsBuildBlocked(player.ServerPosition))
             {
                 player.ChatMessage("<color=#DC143C>Guarded Loot</color>: Event active in this area building blocked.");
+                
                 return false;
             }
 
@@ -137,6 +138,7 @@ namespace Oxide.Plugins
             if (_manager.IsEventActive() && _manager.IsEventLootable(crate.net.ID))
             {
                 player.ChatMessage("<color=#DC143C>Guarded Loot</color>: All guards must be eliminated.");
+
                 return false;
             }
 
