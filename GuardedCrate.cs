@@ -311,7 +311,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            NPCType GetRandomNPC() => Instance._config.NPCTypes.GetRandom();
+            NPCType GetRandomNPC() => _npcTypes.GetRandom();
 
             public void SpawnNPC(NPCType npcType, Vector3 position, Quaternion rotation)
             {
