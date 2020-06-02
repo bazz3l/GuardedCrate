@@ -100,7 +100,6 @@ namespace Oxide.Plugins
         void OnServerInitialized()
         {
             _manager = new EventManager(_config.EventTime, _config.EventDuration, _config.GuardSettings);
-            _manager.StartEventTimer();
             _manager.StartEvent();
         }
 
