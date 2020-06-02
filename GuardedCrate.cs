@@ -456,9 +456,7 @@ namespace Oxide.Plugins
         {
             if (!player.IsAdmin) return;
 
-            if (_manager.IsEventActive()) _manager.ResetEvent();
-
-            _manager.StartEvent();
+            _manager.ResetEvent();
 
             player.ChatMessage("<color=#DC143C>Guarded Crate</color>: Event reset.");
         }
