@@ -7,7 +7,7 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.1.8")]
+    [Info("Guarded Crate", "Bazz3l", "1.1.9")]
     [Description("Spawns a crate guarded by scientists.")]
     class GuardedCrate : RustPlugin
     {
@@ -441,8 +441,6 @@ namespace Oxide.Plugins
         #endregion
 
         #region Helpers
-        float MapSize() => TerrainMeta.Size.x / 2;
-
         Vector3 RandomCircle(Vector3 center, float radius, float angle)
         {
             Vector3 pos = center;
@@ -471,40 +469,9 @@ namespace Oxide.Plugins
             return true;
         }
 
-        bool IsNearMonument(Vector3 position)
-        {
-            foreach(MonumentInfo monument in _monuments)
-            {
-                if (monument.Bounds.Contains(position))
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        bool IsNearPlayer(Vector3 position, bool hasPlayers = false)
-        {
-            foreach(BasePlayer player in BasePlayer.activePlayerList)
-            {
-                if (hasPlayers && Vector3Ex.Distance2D(position, player.transform.position) <= 50f)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
         bool IsValidPoint(Vector3 position, bool hasPlayers)
         {
-            if (IsNearMonument(position) || WaterLevel.Test(position) || IsNearPlayer(position, hasPlayers))
-            {
-                return false;
-            }
-
-            return true;
+            return !WaterLevel.Test(position);
         }
 
         // Thanks to yetzt with fixed grid
