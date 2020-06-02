@@ -312,7 +312,7 @@ namespace Oxide.Plugins
                 {
                     Vector3 position = Instance.RandomCircle(_eventPos, 10f, (360 / Instance._config.NPCCount * num));
 
-                    if (Instance.IsValidLocation(position, false, out spawnPosition))
+                    if (Instance.IsValidLocation(position, out spawnPosition))
                     {
                         SpawnNPC(GetRandomNPC(), spawnPosition, Quaternion.FromToRotation(Vector3.forward, _eventPos));
                         
@@ -449,7 +449,7 @@ namespace Oxide.Plugins
             return pos;
         }
 
-        bool IsValidLocation(Vector3 location, bool hasPlayers, out Vector3 position)
+        bool IsValidLocation(Vector3 location, out Vector3 position)
         {
             RaycastHit hit;
 
@@ -459,7 +459,7 @@ namespace Oxide.Plugins
                 return false;
             }
 
-            if (!IsValidPoint(hit.point, hasPlayers) || _blockedLayers.Contains(hit.collider.gameObject.layer) || hit.collider.name.Contains("_rock"))
+            if (WaterLevel.Test(hit.point) || _blockedLayers.Contains(hit.collider.gameObject.layer) || hit.collider.name.Contains("rock"))
             {
                 position = Vector3.zero;
                 return false;
@@ -467,11 +467,6 @@ namespace Oxide.Plugins
 
             position = hit.point;
             return true;
-        }
-
-        bool IsValidPoint(Vector3 position, bool hasPlayers)
-        {
-            return !WaterLevel.Test(position);
         }
 
         // Thanks to yetzt with fixed grid
