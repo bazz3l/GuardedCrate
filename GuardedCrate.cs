@@ -7,8 +7,8 @@ using Rust;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.1.7")]
-    [Description("Spawns a crate guarded by scientists with custom loot.")]
+    [Info("Guarded Crate", "Bazz3l", "1.1.8")]
+    [Description("Spawns a crate guarded by scientists.")]
     class GuardedCrate : RustPlugin
     {
         [PluginReference]
@@ -16,6 +16,7 @@ namespace Oxide.Plugins
 
         #region Fields
         const string _cratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
+        const string _chutePrefab = "assets/prefabs/misc/parachute/parachute.prefab";
         const string _markerPrefab = "assets/prefabs/tools/map/genericradiusmarker.prefab";
         const string _cargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
         const string _npcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
@@ -32,15 +33,8 @@ namespace Oxide.Plugins
         };
 
         List<MonumentInfo> _monuments { get { return TerrainMeta.Path.Monuments; } }
-        HashSet<HTNPlayer> _guards = new HashSet<HTNPlayer>();
+        EventManager _manager = new EventManager();
         PluginConfig _config;
-        MapMarkerGenericRadius _marker;
-        HackableLockedCrate _crate;
-        Timer _eventRepeatTimer;
-        Timer _eventTimer;
-        bool _eventActive;
-        bool _wasLooted;
-        Vector3 _eventPos;
         
         static GuardedCrate Instance;
         #endregion
@@ -74,13 +68,15 @@ namespace Oxide.Plugins
         {
             public string Kit;
             public float Health;
-            public float Distance;
+            public float MinMovementRadius;
+            public float MaxMovementRadius;
 
-            public NPCType(string kit, float health = 150f, float distance = 100f)
+            public NPCType(string kit, float health = 150f, float minMovementRadius = 10f, float maxMovementRadius = 100f)
             {
                 Kit = kit;
                 Health = health;
-                Distance = distance;
+                MinMovementRadius = minMovementRadius;
+                MaxMovementRadius = maxMovementRadius;
             }
         }
         #endregion
@@ -90,9 +86,8 @@ namespace Oxide.Plugins
 
         void OnServerInitialized()
         {
-            _eventRepeatTimer = timer.Repeat(_config.EventTime, 0, () => StartEvent());
-
-            StartEvent();
+            _manager.StartEventTimer(_config.EventTime, _config.EventLength);
+            _manager.StartEvent(_config.EventLength);
         }
 
         void Init()
@@ -102,18 +97,17 @@ namespace Oxide.Plugins
             _config = Config.ReadObject<PluginConfig>();
         }
 
-        void Unload() => StopEvent();
-
-        void OnLootEntity(BasePlayer player, BaseEntity entity)
+        void Unload()
         {
-            if (entity == null || _crate == null || entity.net.ID != _crate.net.ID)
-            {
-                return;
-            }
+            _manager.ResetEvent();
+        }
 
-            _wasLooted = true;
+        void OnLootEntity(BasePlayer player, HackableLockedCrate crate)
+        {
+            if (crate == null || !_manager.IsEventLootable(crate.net.ID)) return;
 
-            ResetEvent();
+            _manager.SetLooted(true);
+            _manager.ResetEvent();
 
             MessageAll($"<color=#DC143C>Guarded Loot</color>: ({player.displayName}) completed the event.");
         }
@@ -126,7 +120,7 @@ namespace Oxide.Plugins
                 return null;
             }
 
-            if (_eventActive && Vector3Ex.Distance2D(_eventPos, player.transform.position) <= 20f)
+            if (_manager.BuildBlocked(player.ServerPosition))
             {
                 player.ChatMessage("<color=#DC143C>Guarded Loot</color>: You can't build here.");
 
@@ -138,190 +132,191 @@ namespace Oxide.Plugins
         #endregion
 
         #region Core
-        void StartEvent()
+        class EventManager
         {
-            Vector3 position = RandomLocation();
+            List<HTNPlayer> _guards = new List<HTNPlayer>();
+            Vector3 _eventPos = Vector3.zero;
+            MapMarkerGenericRadius _marker;
+            HackableLockedCrate _crate;
+            Timer _eventTimer;
+            Timer _eventRepeatTimer;
+            bool _wasLooted;
+            bool _eventActive;
+            bool _restainedMove;
 
-            if (position == Vector3.zero || _eventActive)
+            public void StartEventTimer(float eventTime, float eventDuaration)
             {
-                return;
+                _eventRepeatTimer?.Destroy();
+
+                _eventRepeatTimer = Instance.timer.Every(eventTime, () => StartEvent(eventDuaration));
             }
 
-            _eventActive = true;
-
-            SpawnPlane(position);
-
-            _eventTimer = timer.Once(_config.EventLength, () => StopEvent());
-        }
-
-        void StopEvent()
-        {
-            if (_crate != null && !_crate.IsDestroyed)
+            public void StartEvent(float eventDuaration)
             {
-                _crate?.Kill();
+                if (IsEventActive()) return;
+
+                SpawnPlane();
+
+                _eventTimer = Instance.timer.Once(eventDuaration, () => ResetEvent());
             }
 
-            ResetEvent();
-        }
-
-        void ResetEvent()
-        {
-            _eventActive = false;
-
-            DestroyGuards();
-            DestroyTimers();
-
-            if (_crate != null && !_crate.IsDestroyed && !_wasLooted)
+            public void ResetEvent()
             {
-                _crate?.Kill();
+                DestroyCrate(_wasLooted);
+                DestroyTimers();
+                DestroyGuards();
+
+                _eventActive = false;
+                _wasLooted = false;
+
+                StartEventTimer(Instance._config.EventTime, Instance._config.EventLength);
             }
 
-            if (_marker != null && !_marker.IsDestroyed)
+            public void SetLooted(bool wasLooted)
             {
-                _marker?.Kill();
+                _wasLooted = wasLooted;
             }
 
-            _wasLooted = false;
-            _marker = null;
-            _crate = null;
-        }
-
-        void DestroyGuards()
-        {
-            foreach (HTNPlayer npc in _guards)
+            public bool IsEventLootable(uint id)
             {
-                if (npc == null || npc.IsDestroyed)
+                return _crate != null && _crate.net.ID == id;
+            }
+
+            public bool IsEventActive()
+            {
+                return _eventActive;
+            }
+
+            public bool BuildBlocked(Vector3 position)
+            {
+                return _eventActive && Vector3Ex.Distance2D(_eventPos, position) <= 20f;
+            }
+
+            void DestroyGuards()
+            {
+                foreach (HTNPlayer npc in _guards)
                 {
-                    continue;
+                    if (npc == null || npc.IsDestroyed) continue;
+
+                    npc.Kill();
                 }
 
-                npc.Kill();
+                _guards.Clear();
             }
 
-            _guards.Clear();
-        }
-
-        void DestroyTimers()
-        {
-            if (_eventRepeatTimer != null && !_eventRepeatTimer.Destroyed)
+            void DestroyCrate(bool wasLooted = false)
             {
-                _eventRepeatTimer.Destroy();
-            }
-
-            if (_eventTimer != null && !_eventTimer.Destroyed)
-            {
-                _eventTimer.Destroy();
-            }
-
-            _eventRepeatTimer = timer.Repeat(_config.EventTime, 0, () => StartEvent());
-        }
-
-        IEnumerator<object> SpawnAI()
-        {
-            for (int i = 0; i < _config.NPCCount; i++)
-            {
-                Vector3 spawnLoc = RandomCircle(_eventPos, UnityEngine.Random.Range(10f, 20f), (360 / _config.NPCCount * i));
-                Vector3 validPos = Vector3.zero;
-
-                if (IsValidLocation(spawnLoc, false, out validPos))
+                if (_crate != null && !_crate.IsDestroyed && !wasLooted)
                 {
-                    SpawnNPC(validPos, Quaternion.FromToRotation(Vector3.forward, _eventPos));                  
+                    _crate?.Kill();
                 }
 
-                yield return new WaitForSeconds(0.5f);
-            }
-
-            yield return null;
-        }
-
-        void SpawnNPC(Vector3 position, Quaternion rotation)
-        {
-            HTNPlayer npc = GameManager.server.CreateEntity(_npcPrefab, position, rotation) as HTNPlayer;
-            if (npc == null)
-            {
-                return;
-            }
-
-            NPCType npcType = _config.NPCTypes.GetRandom();
-            if (npcType == null)
-            {
-                return;
-            }
-            
-            npc.enableSaving = false;
-            npc._aiDomain.MovementRadius = UnityEngine.Random.Range(50f, npcType.Distance);
-            npc._aiDomain.Movement = HTNDomain.MovementRule.RestrainedMove;
-            npc.displayName = "Guard";            
-            npc.InitializeHealth(npcType.Health, npcType.Health);
-            npc.Spawn();
-
-            _guards.Add(npc);
-
-            if (!_config.UseKit)
-            {
-                return;
-            }
-
-            npc.inventory.Strip();
+                if (_marker != null && !_marker.IsDestroyed)
+                {
+                    _marker?.Kill();
+                }
                 
-            Interface.Oxide.CallHook("GiveKit", npc, npcType.Kit);                
-        }
-
-        void SpawnPlane(Vector3 position)
-        {
-            CargoPlane cargoplane = GameManager.server.CreateEntity(_cargoPrefab) as CargoPlane;
-            if (cargoplane == null)
-            {
-                return;
+                _crate = null;
+                _marker = null;
             }
 
-            cargoplane.InitDropPosition(position);
-            cargoplane.Spawn();
-            cargoplane.gameObject.AddComponent<PlaneComponent>();
-        }
-
-        void SpawnCreate(Vector3 position)
-        {
-            _crate = GameManager.server.CreateEntity(_cratePrefab, position, Quaternion.identity) as HackableLockedCrate;
-            if (_crate == null)
+            void DestroyTimers()
             {
-                return;
+                _eventTimer?.Destroy();
+                _eventRepeatTimer?.Destroy();
             }
 
-            _crate.enableSaving = false;
-            _crate.SetWasDropped();
-            _crate.Spawn();
-            _crate.gameObject.AddComponent<ParachuteComponent>();
-        }
-
-        void SpawnMarker(Vector3 position)
-        {
-            _marker = GameManager.server.CreateEntity(_markerPrefab, position) as MapMarkerGenericRadius;
-            if (_marker == null)
+            public void SpawnEvent(Vector3 position)
             {
-                return;
+                _eventPos = position;
+
+                _eventActive = true;
+
+                SpawnCreate();
+
+                Instance.timer.In(30f, () => SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI()));
+
+                Instance.MessageAll($"<color=#DC143C>Guarded Crate</color>: Guards with valuable cargo arriving at ({Instance.GetGrid(_eventPos)}) ETA 30 seconds! Prepare to attack or run for your life.");
             }
 
-            _marker.enableSaving = false;
-            _marker.alpha  = 0.8f;
-            _marker.color1 = Color.red;
-            _marker.color2 = Color.white;
-            _marker.radius = 0.6f;
-            _marker.Spawn();
-            _marker.transform.localPosition = Vector3.zero;
-            _marker.SendUpdate(true);
-        }
+            public void SpawnPlane()
+            {
+                CargoPlane cargoplane = GameManager.server.CreateEntity(_cargoPrefab) as CargoPlane;
+                if (cargoplane == null) return;
 
-        void SpawnEvent(Vector3 position)
-        {
-            _eventPos = position;
+                cargoplane.InitDropPosition(_eventPos);
+                cargoplane.Spawn();
+                cargoplane.gameObject.AddComponent<PlaneComponent>();
+            }
 
-            SpawnMarker(_eventPos);
-            SpawnCreate(_eventPos);
+            public void SpawnCreate()
+            {
+                _crate = GameManager.server.CreateEntity(_cratePrefab, _eventPos, Quaternion.identity) as HackableLockedCrate;
+                if (_crate == null) return;
 
-            timer.In(30f, () => SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI()));
+                _crate.enableSaving = false;
+                _crate.SetWasDropped();
+                _crate.Spawn();
+                _crate.gameObject.AddComponent<ParachuteComponent>();
 
-            MessageAll($"<color=#DC143C>Guarded Crate</color>: Guards with valuable cargo arriving at ({GetGrid(_eventPos)}) ETA 30 seconds! Prepare to attack or run for your life.");
+                _marker = GameManager.server.CreateEntity(_markerPrefab, _eventPos) as MapMarkerGenericRadius;
+                if (_marker == null) return;
+
+                _marker.enableSaving = false;
+                _marker.alpha  = 0.8f;
+                _marker.color1 = Color.red;
+                _marker.color2 = Color.white;
+                _marker.radius = 0.6f;
+                _marker.Spawn();
+                _marker.transform.localPosition = Vector3.zero;
+                _marker.SendUpdate(true);
+            }
+
+            IEnumerator<object> SpawnAI()
+            {
+                for (int i = 0; i < Instance._config.NPCCount; i++)
+                {
+                    Vector3 spawnLoc = Instance.RandomCircle(_eventPos, UnityEngine.Random.Range(10f, 20f), (360 / Instance._config.NPCCount * i));
+                    Vector3 validPos = Vector3.zero;
+
+                    if (Instance.IsValidLocation(spawnLoc, false, out validPos))
+                    {
+                        SpawnNPC(Instance._config.NPCTypes.GetRandom(), validPos, Quaternion.FromToRotation(Vector3.forward, _eventPos));              
+                    }
+
+                    yield return new WaitForSeconds(0.5f);
+                }
+
+                yield return null;
+            }
+
+            public void SpawnNPC(NPCType npcType, Vector3 position, Quaternion rotation)
+            {
+                BaseEntity entity = GameManager.server.CreateEntity(_npcPrefab, position, rotation);
+                if (entity == null) return;
+
+                entity.enableSaving = false;
+                entity.Spawn();
+
+                HTNPlayer component = entity.GetComponent<HTNPlayer>();
+                if (component == null) return;
+
+                component._aiDomain.MovementRadius = UnityEngine.Random.Range(npcType.MinMovementRadius, npcType.MaxMovementRadius);
+                component._aiDomain.NavAgent.speed = Mathf.Lerp(component._aiDomain.NavAgent.speed, 5f, 5f);
+                component._aiDomain.Movement       = GetMovementRule();
+                
+                if (Instance._config.UseKit)
+                {
+                    Interface.Oxide.CallHook("GiveKit", component, npcType.Kit);
+                }
+
+                _guards.Add(component);
+            }
+
+            HTNDomain.MovementRule GetMovementRule()
+            {
+                return _restainedMove ? HTNDomain.MovementRule.RestrainedMove : HTNDomain.MovementRule.FreeMove;
+            }
         }
 
         class PlaneComponent : MonoBehaviour
@@ -359,14 +354,13 @@ namespace Oxide.Plugins
                 {
                     _hasDropped = true;
 
-                    Instance.SpawnEvent(_lastPosition);
+                    Instance._manager.SpawnEvent(_lastPosition);
                 }
             }
         }
 
         class ParachuteComponent : FacepunchBehaviour
         {
-            const string _chutePrefab = "assets/prefabs/misc/parachute/parachute.prefab";
             BaseEntity _parachute;
             BaseEntity _entity;
 
@@ -419,7 +413,7 @@ namespace Oxide.Plugins
             return pos;
         }
 
-        Vector3 RandomLocation()
+        Vector3 GetRandomLocation()
         {
             float wordSize = MapSize();
 
@@ -431,10 +425,7 @@ namespace Oxide.Plugins
 
                 Vector3 position;
 
-                if (!IsValidLocation(randomPos, true, out position))
-                {
-                    continue;
-                }
+                if (!IsValidLocation(randomPos, true, out position)) continue;
 
                 return position;
             }
