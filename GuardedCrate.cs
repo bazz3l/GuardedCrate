@@ -153,11 +153,11 @@ namespace Oxide.Plugins
         class EventManager
         {
             List<HTNPlayer> _guards = new List<HTNPlayer>();
-            List<GuardSetting> _npcTypes = new List<GuardSetting>();
+            List<GuardSetting> _guardTypes = new List<GuardSetting>();
             Vector3 _eventPos = Vector3.zero;
             MapMarkerGenericRadius _marker;
             HackableLockedCrate _crate;
-            Timer _eventRepeatTimer;          
+            Timer _eventRepeatTimer;
             Timer _eventTimer;
             bool _eventActive;
             bool _wasLooted;
@@ -166,11 +166,11 @@ namespace Oxide.Plugins
             float _eventTime;
             float _eventDuration;
 
-            public EventManager(float eventTime, float eventDuration, List<GuardSetting> npcTypes)
+            public EventManager(float eventTime, float eventDuration, List<GuardSetting> guardTypes)
             {
                 _eventTime = eventTime;
                 _eventDuration = eventDuration;
-                _npcTypes = npcTypes;
+                _guardTypes = guardTypes;
             }
 
             public void StartEventTimer()
@@ -370,7 +370,7 @@ namespace Oxide.Plugins
                 SpawnNPC(GetRandomNPC(), spawnPosition, Quaternion.FromToRotation(Vector3.forward, _eventPos));
             }
 
-            GuardSetting GetRandomNPC() => _npcTypes.GetRandom();
+            GuardSetting GetRandomNPC() => _guardTypes.GetRandom();
 
             HTNDomain.MovementRule GetMovementRule() => HTNDomain.MovementRule.FreeMove;
         }
