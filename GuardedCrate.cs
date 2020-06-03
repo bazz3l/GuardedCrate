@@ -32,6 +32,7 @@ namespace Oxide.Plugins
             (int)Layer.Clutter
         };
 
+        List<MonumentInfo> _monuments { get { return TerrainMeta.Path.Monuments; } }
         SpawnFilter _filter = new SpawnFilter();
         EventManager _manager;
         PluginConfig _config;
@@ -632,12 +633,25 @@ namespace Oxide.Plugins
                 return Vector3.zero;
             }
 
-            if (_blockedLayers.Contains(hit.collider.gameObject.layer) || hit.collider.name.Contains("rock_"))
+            if (IsMonumentBounds(hit.point) || hit.collider.name.Contains("rock_") ||_blockedLayers.Contains(hit.collider.gameObject.layer))
             {
                 return Vector3.zero;
             }
 
             return hit.point;
+        }
+
+        bool IsMonumentBounds(Vector3 position)
+        {
+            foreach (MonumentInfo monument in _monuments)
+            {
+                if (monument.Bounds.Contains(position))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         // Thanks to yetzt with fixed grid
