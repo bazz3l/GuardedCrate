@@ -171,7 +171,6 @@ namespace Oxide.Plugins
             List<GuardSetting> _guardSettings = new List<GuardSetting>();            
             List<NPCPlayerApex> _guards = new List<NPCPlayerApex>();
             Vector3 _eventPosition = Vector3.zero;
-            MapMarkerGenericRadius _marker;
             HackableLockedCrate _crate;
             Timer _eventRepeatTimer;
             Timer _eventTimer;
@@ -281,14 +280,8 @@ namespace Oxide.Plugins
                 {
                     _crate?.Kill();
                 }
-                
-                if (_marker != null && !_marker.IsDestroyed)
-                {
-                    _marker?.Kill();
-                }
 
                 _crate = null;
-                _marker = null;
             }
 
             void DestroyTimers()
@@ -327,22 +320,21 @@ namespace Oxide.Plugins
 
             public void SpawnCreate()
             {
-                _marker = GameManager.server.CreateEntity(_markerPrefab, _eventPosition)?.GetComponent<MapMarkerGenericRadius>();
-                if (_marker != null)
+                MapMarkerGenericRadius marker = GameManager.server.CreateEntity(_markerPrefab, _eventPosition)?.GetComponent<MapMarkerGenericRadius>();
+                if (marker != null)
                 {
-                    _marker.enableSaving = false;
-                    _marker.alpha  = 0.8f;
-                    _marker.color1 = Color.red;
-                    _marker.color2 = Color.white;
-                    _marker.radius = 0.6f;
-                    _marker.Spawn();
-                    _marker.transform.localPosition = Vector3.zero;
-                    _marker.SendUpdate(true);
+                    marker.enableSaving = false;
+                    marker.alpha  = 0.8f;
+                    marker.color1 = Color.red;
+                    marker.color2 = Color.white;
+                    marker.radius = 0.6f;
+                    marker.Spawn();
+                    marker.transform.localPosition = Vector3.zero;
+                    marker.SendUpdate(true);
                 }
                 else
                 {
-                    _marker.Kill(BaseEntity.DestroyMode.None);
-                    _marker = null;
+                    marker.Kill(BaseEntity.DestroyMode.None);
                 }
 
                 _crate = GameManager.server.CreateEntity(_cratePrefab, _eventPosition, Quaternion.identity)?.GetComponent<HackableLockedCrate>();
@@ -351,7 +343,9 @@ namespace Oxide.Plugins
                     _crate.enableSaving = false;
                     _crate.SetWasDropped();
                     _crate.Spawn();
-                    _crate.gameObject.AddComponent<ParachuteComponent>();                    
+                    _crate.gameObject.AddComponent<ParachuteComponent>();
+
+                    marker?.SetParent(_crate);
                 }
                 else
                 {
