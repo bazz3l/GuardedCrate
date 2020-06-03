@@ -624,7 +624,9 @@ namespace Oxide.Plugins
                 return Vector3.zero;
             }
 
-            if (!Physics.Raycast(position + (Vector3.up * 250f), Vector3.down, out hit, Mathf.Infinity, _allowedLayers))
+            position.y += 250f;
+
+            if (!Physics.Raycast(position, Vector3.down, out hit, Mathf.Infinity, _allowedLayers))
             {
                 return Vector3.zero;
             }
