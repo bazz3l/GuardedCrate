@@ -34,7 +34,6 @@ namespace Oxide.Plugins
             (int)Layer.Clutter
         };
 
-        List<MonumentInfo> _monuments { get { return TerrainMeta.Path.Monuments; } }
         EventManager _manager;
         PluginConfig _config;
         
@@ -50,7 +49,7 @@ namespace Oxide.Plugins
                 EventDuration = 1800f,
                 OpenCrate = true,
                 UseKits = true,
-                GuardCount = 15,
+                GuardCount = 10,
                 GuardSettings = new List<GuardSetting> {
                     new GuardSetting("guard"),
                     new GuardSetting("guard-heavy")
@@ -112,6 +111,8 @@ namespace Oxide.Plugins
 
         void Unload()
         {
+            if (_manager == null) return;
+
             _manager.ResetEvent();
         }
 
@@ -151,8 +152,8 @@ namespace Oxide.Plugins
         #region Core
         class EventManager
         {
+            List<GuardSetting> _guardTypes = new List<GuardSetting>();            
             List<HTNPlayer> _guards = new List<HTNPlayer>();
-            List<GuardSetting> _guardTypes = new List<GuardSetting>();
             Vector3 _eventPos = Vector3.zero;
             MapMarkerGenericRadius _marker;
             HackableLockedCrate _crate;
@@ -264,14 +265,8 @@ namespace Oxide.Plugins
                 {
                     _crate?.Kill();
                 }
-
-                if (_marker != null && !_marker.IsDestroyed)
-                {
-                    _marker?.Kill();
-                }
                 
                 _crate = null;
-                _marker = null;
             }
 
             void DestroyTimers()
@@ -345,7 +340,7 @@ namespace Oxide.Plugins
                 component.enableSaving = false;
                 component.Spawn();
                 component._aiDomain.MovementRadius = UnityEngine.Random.Range(guardSetting.MinMovementRadius, guardSetting.MaxMovementRadius);
-                component._aiDomain.Movement = GetMovementRule();
+                component._aiDomain.Movement = HTNDomain.MovementRule.RestrainedMove;
                 
                 if (Instance._config.UseKits)
                 {
@@ -359,21 +354,13 @@ namespace Oxide.Plugins
             {
                 Vector3 position = Instance.RandomCircle(_eventPos, 10f, (360 / Instance._config.GuardCount * num));
 
-                if (!Instance.IsValidLocation(position, out position)) return;
-
-                SpawnNPC(GetRandomNPC(), position, Quaternion.FromToRotation(Vector3.forward, _eventPos));
+                if (Instance.IsValidLocation(position, out position))
+                {
+                    SpawnNPC(GetRandomNPC(), position, Quaternion.FromToRotation(Vector3.forward, _eventPos));
+                }
             }
 
             GuardSetting GetRandomNPC() => _guardTypes.GetRandom();
-
-            HTNDomain.MovementRule GetMovementRule() => HTNDomain.MovementRule.FreeMove;
-
-            Vector3 GetRandomPosition()
-            {
-                SpawnHandler handler = new SpawnHandler();
-
-                return Vector3.zero;
-            }
         }
 
         class PlaneComponent : MonoBehaviour
