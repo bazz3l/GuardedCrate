@@ -95,7 +95,7 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "UseKit (should use kit)")]
             public bool UseKit = false;
 
-            public GuardSetting(string name, string kit, float health = 100f, float minRoamRadius = 50f, float maxRoamRadius = 100f)
+            public GuardSetting(string name, string kit, float health = 100f, float minRoamRadius = 20f, float maxRoamRadius = 80f)
             {
                 Name = name;
                 Kit = kit;
@@ -380,7 +380,7 @@ namespace Oxide.Plugins
                     component.Stats.Hostility       = 1;
                     component.Stats.Defensiveness   = 1;
                     component.InitFacts();
-                    component.gameObject.AddComponent<GuardComponent>()?.Init(component.Stats.MaxRoamRange, position);
+                    component.gameObject.AddComponent<GuardComponent>()?.Init(position);
 
                     _guards.Add(component);
 
@@ -430,11 +430,9 @@ namespace Oxide.Plugins
         {
             NPCPlayerApex _npc;
             Vector3 _targetDestination;
-            float _maxRoamDistance;
 
-            public void Init(float maxRoamDistance, Vector3 targetDestination)
+            public void Init(Vector3 targetDestination)
             {
-                _maxRoamDistance    = maxRoamDistance;
                 _targetDestination  = targetDestination;
                 _npc.ServerPosition = targetDestination;
             }
@@ -466,9 +464,7 @@ namespace Oxide.Plugins
 
                 float distance = Vector3.Distance(transform.position, _targetDestination);
 
-                bool moveback = distance >= 10 || distance >= _maxRoamDistance;
-
-                if (_npc.AttackTarget == null && moveback || _npc.AttackTarget != null && moveback)
+                if (_npc.AttackTarget == null && distance >= 15f || _npc.AttackTarget != null && distance >= _npc.Stats.MaxRoamRange)
                 {
                     if (_npc.GetNavAgent == null || !_npc.GetNavAgent.isOnNavMesh)
                         _npc.finalDestination = _targetDestination;
@@ -476,7 +472,7 @@ namespace Oxide.Plugins
                         _npc.GetNavAgent.SetDestination(_targetDestination);
 
                     _npc.Destination = _targetDestination;
-                    _npc.SetFact(NPCPlayerApex.Facts.Speed, moveback ? (byte)NPCPlayerApex.SpeedEnum.Sprint : (byte)NPCPlayerApex.SpeedEnum.Walk, true, true);
+                    _npc.SetFact(NPCPlayerApex.Facts.Speed, (byte)NPCPlayerApex.SpeedEnum.Sprint, true, true);
                 }
             }
         }
