@@ -169,7 +169,7 @@ namespace Oxide.Plugins
         {
             List<GuardSetting> _guardSettings = new List<GuardSetting>();            
             List<NPCPlayerApex> _guards = new List<NPCPlayerApex>();
-            Vector3 _eventPos = Vector3.zero;
+            Vector3 _eventPosition = Vector3.zero;
             MapMarkerGenericRadius _marker;
             HackableLockedCrate _crate;
             Timer _eventRepeatTimer;
@@ -228,7 +228,7 @@ namespace Oxide.Plugins
 
             public bool IsBuildBlocked(Vector3 position)
             {
-                return _eventActive && Vector3Ex.Distance2D(_eventPos, position) <= 20f;
+                return _eventActive && Vector3Ex.Distance2D(_eventPosition, position) <= 20f;
             }
 
             public void RemoveNPC(NPCPlayerApex npc)
@@ -298,7 +298,7 @@ namespace Oxide.Plugins
 
             public void SpawnEvent(Vector3 position)
             {
-                _eventPos = position;
+                _eventPosition = position;
 
                 _eventActive = true;
 
@@ -306,7 +306,7 @@ namespace Oxide.Plugins
 
                 Instance.timer.In(30f, () => SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI()));
 
-                Instance.MessageAll($"<color=#DC143C>Guarded Crate</color>: Guards with valuable cargo arriving at ({Instance.GetGrid(_eventPos)}) ETA 30 seconds! Prepare to attack or run for your life.");
+                Instance.MessageAll($"<color=#DC143C>Guarded Crate</color>: Guards with valuable cargo arriving at ({Instance.GetGrid(_eventPosition)}) ETA 30 seconds! Prepare to attack or run for your life.");
             }
 
             public void SpawnPlane()
@@ -325,7 +325,7 @@ namespace Oxide.Plugins
 
             public void SpawnCreate()
             {
-                _marker = GameManager.server.CreateEntity(_markerPrefab, _eventPos)?.GetComponent<MapMarkerGenericRadius>();
+                _marker = GameManager.server.CreateEntity(_markerPrefab, _eventPosition)?.GetComponent<MapMarkerGenericRadius>();
                 if (_marker != null)
                 {
                     _marker.enableSaving = false;
@@ -343,7 +343,7 @@ namespace Oxide.Plugins
                     _marker = null;
                 }
 
-                _crate = GameManager.server.CreateEntity(_cratePrefab, _eventPos, Quaternion.identity)?.GetComponent<HackableLockedCrate>();
+                _crate = GameManager.server.CreateEntity(_cratePrefab, _eventPosition, Quaternion.identity)?.GetComponent<HackableLockedCrate>();
                 if (_crate != null)
                 {
                     _crate.enableSaving = false;
@@ -403,11 +403,11 @@ namespace Oxide.Plugins
 
             public void TrySpawnNPC(int num)
             {
-                Vector3 position = Instance.RandomCircle(_eventPos, 10f, (360 / Instance._config.GuardMaxSpawn * num));
+                Vector3 position = Instance.RandomCircle(_eventPosition, 10f, (360 / Instance._config.GuardMaxSpawn * num));
 
                 if (Instance.IsValidLocation(position, out position))
                 {
-                    SpawnNPC(GetRandomNPC(), position, Quaternion.FromToRotation(Vector3.forward, _eventPos));
+                    SpawnNPC(GetRandomNPC(), position, Quaternion.FromToRotation(Vector3.forward, _eventPosition));
                 }
             }
 
