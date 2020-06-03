@@ -301,7 +301,7 @@ namespace Oxide.Plugins
 
                 Instance.timer.In(30f, () => SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI()));
 
-                MessageAll($"<color=#DC143C>Guarded Crate</color>: Guards with valuable cargo arriving at ({Instance.GetGrid(_eventPosition)}) ETA 30 seconds! Prepare to attack or run for your life.");
+                MessageAll($"<color=#DC143C>Guarded Crate</color>: Guards with valuable cargo arriving at ({GetGrid(_eventPosition)}) ETA 30 seconds! Prepare to attack or run for your life.");
             }
 
             public void SpawnPlane(Vector3 position)
@@ -653,7 +653,7 @@ namespace Oxide.Plugins
         }
 
         // Thanks to yetzt with fixed grid
-        string GetGrid(Vector3 position)
+        static string GetGrid(Vector3 position)
         {
             char letter = 'A';
 
