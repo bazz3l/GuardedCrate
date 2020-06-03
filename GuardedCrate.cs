@@ -46,10 +46,10 @@ namespace Oxide.Plugins
                 EventTime = 3600f,
                 EventDuration = 1800f,
                 OpenCrate = true,
-                GuardCount = 10,            
+                GuardMaxSpawn = 10,            
                 GuardSettings = new List<GuardSetting> {
-                    new GuardSetting("guard"),
-                    new GuardSetting("guard-heavy")
+                    new GuardSetting("Guard", "guard", 100f),
+                    new GuardSetting("Heavy Guard", "guard-heavy", 300f)
                 }
             };
         }
@@ -65,8 +65,8 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "OpenCrate (should crate open once guards are all eliminated)")]
             public bool OpenCrate;
 
-            [JsonProperty(PropertyName = "GuardCount (total number of guards to spawn)")]
-            public int GuardCount;
+            [JsonProperty(PropertyName = "GuardMaxSpawn (total number of guards to spawn)")]
+            public int GuardMaxSpawn;
 
             [JsonProperty(PropertyName = "GuardSettings (min/max roam distance and kit name)")]
             public List<GuardSetting> GuardSettings;
@@ -74,27 +74,46 @@ namespace Oxide.Plugins
 
         class GuardSetting
         {
-            public string Name = "Guard";
-            public string KitName;
+            [JsonProperty(PropertyName = "Name (npc display name)")]
+            public string Name;
+
+            [JsonProperty(PropertyName = "Kit (kit name)")]
+            public string Kit;
+
+            [JsonProperty(PropertyName = "Health (sets the health of npc)")]
+            public float Health = 100f;
+
+            [JsonProperty(PropertyName = "MinRoamRadius (min roam radius)")]
             public float MinRoamRadius;
+
+            [JsonProperty(PropertyName = "MaxRoamRadius (max roam radius)")]
             public float MaxRoamRadius;
+
+            [JsonProperty(PropertyName = "AggressionRange (distance they become agressive)")]
             public float AggressionRange = 151f;
+
+            [JsonProperty(PropertyName = "VisionRange (distance they are alerted)")]
             public float VisionRange = 153f;
+
+            [JsonProperty(PropertyName = "DeaggroRange (distance they will deaggro)")]
             public float DeaggroRange = 154f;
+
+            [JsonProperty(PropertyName = "LongRange (distance they will shoot)")]
             public float LongRange = 150f;
+
+            [JsonProperty(PropertyName = "UseKit (should use kit)")]
             public bool UseKit = false;
 
-            public GuardSetting(string kitName, float minRoamRadius = 30f, float maxRoamRadius = 80f)
+            public GuardSetting(string name, string kit, float health = 100f, float minRoamRadius = 30f, float maxRoamRadius = 80f)
             {
-                KitName       = kitName;
+                Name = name;
+                Kit = kit;
+                Health = health;
                 MinRoamRadius = minRoamRadius;
                 MaxRoamRadius = maxRoamRadius;
             }
 
-            public float GetRoamRange()
-            {
-                return UnityEngine.Random.Range(MinRoamRadius, MaxRoamRadius);
-            }
+            public float GetRoamRange() => UnityEngine.Random.Range(MinRoamRadius, MaxRoamRadius);
         }
         #endregion
 
@@ -360,7 +379,7 @@ namespace Oxide.Plugins
 
                     component.CancelInvoke(component.EquipTest);
                     component.CancelInvoke(component.RadioChatter);
-                    component.startHealth = 100f;
+                    component.startHealth = settings.Health;
                     component.InitializeHealth(component.startHealth, component.startHealth);
                     component.RadioEffect           = new GameObjectRef();
                     component.CommunicationRadius   = 0;
@@ -377,7 +396,7 @@ namespace Oxide.Plugins
 
                     _guards.Add(component);
 
-                    Instance.timer.In(1f, () => GiveKit(component, settings.KitName, settings.UseKit));
+                    Instance.timer.In(1f, () => GiveKit(component, settings.Kit, settings.UseKit));
                 }
                 else
                 {
@@ -385,18 +404,18 @@ namespace Oxide.Plugins
                 }
             }
 
-            void GiveKit(NPCPlayerApex npc, string kitName, bool give)
+            void GiveKit(NPCPlayerApex npc, string kit, bool give)
             {
                 if (!give) return;
 
                 npc.inventory.Strip();
 
-                Interface.Oxide.CallHook("GiveKit", npc, kitName);
+                Interface.Oxide.CallHook("GiveKit", npc, kit);
             }
 
             public void TrySpawnNPC(int num)
             {
-                Vector3 position = Instance.RandomCircle(_eventPos, 10f, (360 / Instance._config.GuardCount * num));
+                Vector3 position = Instance.RandomCircle(_eventPos, 10f, (360 / Instance._config.GuardMaxSpawn * num));
 
                 if (Instance.IsValidLocation(position, out position))
                 {
@@ -406,7 +425,7 @@ namespace Oxide.Plugins
 
             IEnumerator<object> SpawnAI()
             {
-                for (int i = 0; i < Instance._config.GuardCount; i++)
+                for (int i = 0; i < Instance._config.GuardMaxSpawn; i++)
                 {
                     TrySpawnNPC(i);
 
