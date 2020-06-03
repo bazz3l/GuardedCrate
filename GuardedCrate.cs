@@ -608,11 +608,7 @@ namespace Oxide.Plugins
             {
                 position = GetValidLocation(GetRandomPosition());
 
-                if (position == Vector3.zero) continue;
-
-                maxTries--;
-
-                if (position == Vector3.zero) continue;
+                if (position == Vector3.zero || WaterLevel.Test(position)) continue;
 
             } while(position == Vector3.zero && --maxTries > 0);
 
