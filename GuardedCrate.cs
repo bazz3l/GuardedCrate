@@ -388,7 +388,7 @@ namespace Oxide.Plugins
                     component.Stats.Hostility       = 1;
                     component.Stats.Defensiveness   = 1;
                     component.InitFacts();
-                    component.gameObject.AddComponent<GuardComponent>()?.Init(settings.GetRoamRange(), position);
+                    component.gameObject.AddComponent<GuardComponent>()?.Init(component.Stats.MaxRoamRange, position);
 
                     _guards.Add(component);
 
