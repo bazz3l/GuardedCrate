@@ -89,14 +89,11 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "MaxRoamRadius (max roam radius)")]
             public float MaxRoamRadius;
 
-            [JsonProperty(PropertyName = "AggressionRange (distance they become agressive)")]
-            public float AggressionRange = 151f;
+            [JsonProperty(PropertyName = "ChaseDistance (distance they attack and chase)")]
+            public float ChaseDistance = 151f;
 
             [JsonProperty(PropertyName = "VisionRange (distance they are alerted)")]
             public float VisionRange = 153f;
-
-            [JsonProperty(PropertyName = "DeaggroRange (distance they will deaggro)")]
-            public float DeaggroRange = 154f;
 
             [JsonProperty(PropertyName = "MaxRange (max distance they will shoot)")]
             public float MaxRange = 150f;
@@ -384,11 +381,10 @@ namespace Oxide.Plugins
                     component.RadioEffect           = new GameObjectRef();
                     component.CommunicationRadius   = 0;
                     component.displayName           = settings.Name;
-                    component.Stats.AggressionRange = settings.AggressionRange;
+                    component.Stats.AggressionRange = component.Stats.DeaggroRange = settings.ChaseDistance;
                     component.Stats.VisionRange     = settings.VisionRange;
-                    component.Stats.DeaggroRange    = settings.DeaggroRange;
                     component.Stats.LongRange       = settings.MaxRange;
-                    component.Stats.MaxRoamRange    = settings.MaxRoamRadius;
+                    component.Stats.MaxRoamRange    = settings.GetRoamRange();
                     component.Stats.Hostility       = 1;
                     component.Stats.Defensiveness   = 1;
                     component.InitFacts();
@@ -460,7 +456,7 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                if (gameObject.GetComponent<Spawnable>()) Destroy(gameObject.GetComponent<Spawnable>());
+                Destroy(gameObject.GetComponent<Spawnable>());
             }
 
             void FixedUpdate() => ShouldRelocate();
