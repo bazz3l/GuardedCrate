@@ -92,16 +92,10 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "ChaseDistance (distance they attack and chase)")]
             public float ChaseDistance = 151f;
 
-            [JsonProperty(PropertyName = "VisionRange (distance they are alerted)")]
-            public float VisionRange = 153f;
-
-            [JsonProperty(PropertyName = "MaxRange (max distance they will shoot)")]
-            public float MaxRange = 150f;
-
             [JsonProperty(PropertyName = "UseKit (should use kit)")]
             public bool UseKit = false;
 
-            public GuardSetting(string name, string kit, float health = 100f, float minRoamRadius = 30f, float maxRoamRadius = 80f)
+            public GuardSetting(string name, string kit, float health = 100f, float minRoamRadius = 50f, float maxRoamRadius = 100f)
             {
                 Name = name;
                 Kit = kit;
@@ -382,8 +376,6 @@ namespace Oxide.Plugins
                     component.CommunicationRadius   = 0;
                     component.displayName           = settings.Name;
                     component.Stats.AggressionRange = component.Stats.DeaggroRange = settings.ChaseDistance;
-                    component.Stats.VisionRange     = settings.VisionRange;
-                    component.Stats.LongRange       = settings.MaxRange;
                     component.Stats.MaxRoamRange    = settings.GetRoamRange();
                     component.Stats.Hostility       = 1;
                     component.Stats.Defensiveness   = 1;
