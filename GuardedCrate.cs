@@ -242,7 +242,7 @@ namespace Oxide.Plugins
 
                 ResetEvent(true);
 
-                Instance.MessageAll($"<color=#DC143C>Guarded Loot</color>: Event completed, crate is now open loot up fast.");
+                MessageAll($"<color=#DC143C>Guarded Loot</color>: Event completed, crate is now open loot up fast.");
             }
 
             void OpenCrate()
@@ -301,7 +301,7 @@ namespace Oxide.Plugins
 
                 Instance.timer.In(30f, () => SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI()));
 
-                Instance.MessageAll($"<color=#DC143C>Guarded Crate</color>: Guards with valuable cargo arriving at ({Instance.GetGrid(_eventPosition)}) ETA 30 seconds! Prepare to attack or run for your life.");
+                MessageAll($"<color=#DC143C>Guarded Crate</color>: Guards with valuable cargo arriving at ({Instance.GetGrid(_eventPosition)}) ETA 30 seconds! Prepare to attack or run for your life.");
             }
 
             public void SpawnPlane(Vector3 position)
@@ -664,7 +664,7 @@ namespace Oxide.Plugins
             return $"{letter}{z}";
         }
 
-        void MessageAll(string message)
+        static void MessageAll(string message)
         {
             foreach (BasePlayer player in BasePlayer.activePlayerList)
             {
