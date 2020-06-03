@@ -202,6 +202,8 @@ namespace Oxide.Plugins
                 SpawnPlane(position);
 
                 _eventTimer = Instance.timer.Once(_eventDuration, () => ResetEvent());
+
+                MessageAll("<color=#DC143C>Guarded Crate</color>: Prepare for coordinates.");
             }
 
             public void ResetEvent(bool completed = false)
@@ -242,7 +244,7 @@ namespace Oxide.Plugins
 
                 ResetEvent(true);
 
-                MessageAll($"<color=#DC143C>Guarded Loot</color>: Event completed, crate is now open loot up fast.");
+                MessageAll($"<color=#DC143C>Guarded Crate</color>: Event completed, crate is now open loot up fast.");
             }
 
             void OpenCrate()
