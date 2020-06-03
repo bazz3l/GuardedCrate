@@ -464,7 +464,7 @@ namespace Oxide.Plugins
 
                 float distance = Vector3.Distance(transform.position, _targetDestination);
 
-                if (_npc.AttackTarget == null && distance >= 15f || _npc.AttackTarget != null && distance >= _npc.Stats.MaxRoamRange)
+                if (_npc.AttackTarget == null && distance > 15f || _npc.AttackTarget != null && distance > _npc.Stats.MaxRoamRange)
                 {
                     if (_npc.GetNavAgent == null || !_npc.GetNavAgent.isOnNavMesh)
                         _npc.finalDestination = _targetDestination;
