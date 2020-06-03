@@ -32,6 +32,7 @@ namespace Oxide.Plugins
             (int)Layer.Clutter
         };
 
+        SpawnFilter _filter = new SpawnFilter();
         EventManager _manager;
         PluginConfig _config;
         
@@ -114,7 +115,7 @@ namespace Oxide.Plugins
         void OnServerInitialized()
         {
             _manager = new EventManager(_config.EventTime, _config.EventDuration, _config.GuardSettings);
-            _manager.StartEvent();
+            _manager.ResetEvent();
         }
 
         void Init()
@@ -191,14 +192,14 @@ namespace Oxide.Plugins
             {
                 _eventRepeatTimer?.Destroy();
 
-                _eventRepeatTimer = Instance.timer.Every(_eventTime, () => StartEvent());
+                _eventRepeatTimer = Instance.timer.Every(_eventTime, () => StartEvent(Instance.GetRandomPosition()));
             }
 
-            public void StartEvent()
+            public void StartEvent(Vector3 position)
             {
-                if (IsEventActive()) return;
+                if (position == Vector3.zero || IsEventActive()) return;
 
-                SpawnPlane();
+                SpawnPlane(position);
 
                 _eventTimer = Instance.timer.Once(_eventDuration, () => ResetEvent());
             }
@@ -309,11 +310,12 @@ namespace Oxide.Plugins
                 Instance.MessageAll($"<color=#DC143C>Guarded Crate</color>: Guards with valuable cargo arriving at ({Instance.GetGrid(_eventPosition)}) ETA 30 seconds! Prepare to attack or run for your life.");
             }
 
-            public void SpawnPlane()
+            public void SpawnPlane(Vector3 position)
             {
                 CargoPlane cargoplane = GameManager.server.CreateEntity(_cargoPrefab)?.GetComponent<CargoPlane>();
                 if (cargoplane != null)
                 {
+                    cargoplane.InitDropPosition(position);
                     cargoplane.Spawn();
                     cargoplane.gameObject.AddComponent<PlaneComponent>();
                 }
@@ -405,10 +407,11 @@ namespace Oxide.Plugins
             {
                 Vector3 position = Instance.RandomCircle(_eventPosition, 10f, (360 / Instance._config.GuardMaxSpawn * num));
 
-                if (Instance.IsValidLocation(position, out position))
-                {
-                    SpawnNPC(GetRandomNPC(), position, Quaternion.FromToRotation(Vector3.forward, _eventPosition));
-                }
+                position = Instance.GetValidLocation(position);
+
+                if (position == Vector3.zero) return;
+
+                SpawnNPC(GetRandomNPC(), position, Quaternion.FromToRotation(Vector3.forward, _eventPosition));
             }
 
             IEnumerator<object> SpawnAI()
@@ -582,24 +585,65 @@ namespace Oxide.Plugins
             return pos;
         }
 
-        bool IsValidLocation(Vector3 location, out Vector3 position)
+        Vector3 GetRandomPosition()
+        {
+            Vector3 position = Vector3.zero;
+
+            float num = 100f;
+            float x = TerrainMeta.Size.x / 3f;
+
+            do
+            {
+                position = Vector3Ex.Range(-x, x);
+            }
+            while (_filter.GetFactor(position) == 0f && (num -= 1f) > 0f);
+
+            position.y = 0f;
+
+            return position;
+        }
+
+        Vector3 GetEventPosition()
+        {
+            Vector3 position = Vector3.zero;
+
+            int maxTries = 200;
+
+            do
+            {
+                position = GetValidLocation(GetRandomPosition());
+
+                if (position == Vector3.zero) continue;
+
+                maxTries--;
+
+                if (position == Vector3.zero) continue;
+
+            } while(position == Vector3.zero && --maxTries > 0);
+
+            return position;
+        }
+
+        Vector3 GetValidLocation(Vector3 position)
         {
             RaycastHit hit;
 
-            if (!Physics.Raycast(location + (Vector3.up * 250f), Vector3.down, out hit, Mathf.Infinity, _allowedLayers))
+            if (position == Vector3.zero)
             {
-                position = Vector3.zero;
-                return false;
+                return Vector3.zero;
             }
 
-            if (_blockedLayers.Contains(hit.collider.gameObject.layer) || hit.collider.name.Contains("rock"))
+            if (!Physics.Raycast(position + (Vector3.up * 250f), Vector3.down, out hit, Mathf.Infinity, _allowedLayers))
             {
-                position = Vector3.zero;
-                return false;
+                return Vector3.zero;
             }
 
-            position = hit.point;
-            return true;
+            if (_blockedLayers.Contains(hit.collider.gameObject.layer) || hit.collider.name.Contains("rock_"))
+            {
+                return Vector3.zero;
+            }
+
+            return hit.point;
         }
 
         // Thanks to yetzt with fixed grid
