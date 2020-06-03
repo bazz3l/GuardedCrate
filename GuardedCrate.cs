@@ -98,8 +98,8 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "DeaggroRange (distance they will deaggro)")]
             public float DeaggroRange = 154f;
 
-            [JsonProperty(PropertyName = "LongRange (distance they will shoot)")]
-            public float LongRange = 150f;
+            [JsonProperty(PropertyName = "MaxRange (max distance they will shoot)")]
+            public float MaxRange = 150f;
 
             [JsonProperty(PropertyName = "UseKit (should use kit)")]
             public bool UseKit = false;
@@ -387,7 +387,7 @@ namespace Oxide.Plugins
                     component.Stats.AggressionRange = settings.AggressionRange;
                     component.Stats.VisionRange     = settings.VisionRange;
                     component.Stats.DeaggroRange    = settings.DeaggroRange;
-                    component.Stats.LongRange       = settings.LongRange;
+                    component.Stats.LongRange       = settings.MaxRange;
                     component.Stats.MaxRoamRange    = settings.MaxRoamRadius;
                     component.Stats.Hostility       = 1;
                     component.Stats.Defensiveness   = 1;
