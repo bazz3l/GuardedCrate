@@ -4,6 +4,7 @@ using Newtonsoft.Json;
 using Oxide.Core.Plugins;
 using Oxide.Core;
 using UnityEngine;
+using Rust.Ai.HTN;
 using Rust;
 
 namespace Oxide.Plugins
@@ -19,7 +20,7 @@ namespace Oxide.Plugins
         const string _chutePrefab = "assets/prefabs/misc/parachute/parachute.prefab";
         const string _markerPrefab = "assets/prefabs/tools/map/genericradiusmarker.prefab";
         const string _cargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
-        const string _npcPrefab = "assets/prefabs/npc/scientist/scientist_gunner.prefab";
+        const string _npcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
 
         readonly int _allowedLayers = LayerMask.GetMask("Terrain", "World", "Default");
         readonly List<int> _blockedLayers = new List<int> {
@@ -92,7 +93,7 @@ namespace Oxide.Plugins
             public float MaxRoamRadius;
 
             [JsonProperty(PropertyName = "ChaseDistance (distance they attack and chase)")]
-            public float ChaseDistance = 151f;
+            public float ChaseDistance = 150f;
 
             [JsonProperty(PropertyName = "UseKit (should use kit)")]
             public bool UseKit = false;
@@ -116,7 +117,7 @@ namespace Oxide.Plugins
         void OnServerInitialized()
         {
             _manager = new EventManager(_config.EventTime, _config.EventDuration, _config.GuardSettings);
-            _manager.ResetEvent();
+            _manager.StartEvent(GetEventPosition());
         }
 
         void Init()
@@ -163,14 +164,14 @@ namespace Oxide.Plugins
             return null;
         }
 
-        void OnEntityDeath(NPCPlayerApex npc, HitInfo info) => _manager.RemoveNPC(npc);
+        void OnEntityDeath(HTNPlayer npc, HitInfo info) => _manager.RemoveNPC(npc);
         #endregion
 
         #region Core
         class EventManager
         {
             List<GuardSetting> _guardSettings = new List<GuardSetting>();            
-            List<NPCPlayerApex> _guards = new List<NPCPlayerApex>();
+            List<HTNPlayer> _guards = new List<HTNPlayer>();
             Vector3 _eventPosition = Vector3.zero;
             HackableLockedCrate _crate;
             Timer _eventRepeatTimer;
@@ -234,7 +235,7 @@ namespace Oxide.Plugins
                 return _eventActive && Vector3Ex.Distance2D(_eventPosition, position) <= 20f;
             }
 
-            public void RemoveNPC(NPCPlayerApex npc)
+            public void RemoveNPC(HTNPlayer npc)
             {
                 if (!_guards.Contains(npc)) return;
 
@@ -267,7 +268,7 @@ namespace Oxide.Plugins
 
             void DestroyGuards()
             {
-                foreach (NPCPlayerApex npc in _guards)
+                foreach (HTNPlayer npc in _guards)
                 {
                     if (npc == null || npc.IsDestroyed) continue;
 
@@ -361,25 +362,17 @@ namespace Oxide.Plugins
             {
                 BaseEntity entity = GameManager.server.CreateEntity(_npcPrefab, position, rotation);
 
-                NPCPlayerApex component = entity.GetComponent<NPCPlayerApex>();
+                HTNPlayer component = entity.GetComponent<HTNPlayer>();
                 if (component != null)
                 {
                     entity.enableSaving = false;
                     entity.Spawn();
 
-                    component.CancelInvoke(component.EquipTest);
-                    component.CancelInvoke(component.RadioChatter);
                     component.startHealth = settings.Health;
                     component.InitializeHealth(component.startHealth, component.startHealth);
-                    component.RadioEffect           = new GameObjectRef();
-                    component.CommunicationRadius   = 0;
-                    component.displayName           = settings.Name;
-                    component.Stats.AggressionRange = component.Stats.DeaggroRange = settings.ChaseDistance;
-                    component.Stats.MaxRoamRange    = settings.GetRoamRange();
-                    component.Stats.Hostility       = 1;
-                    component.Stats.Defensiveness   = 1;
-                    component.InitFacts();
-                    component.gameObject.AddComponent<GuardComponent>()?.Init(position);
+                    component.displayName = settings.Name;
+                    component._aiDomain.MovementRadius = settings.GetRoamRange();
+                    component._aiDomain.Movement = HTNDomain.MovementRule.FreeMove;
 
                     _guards.Add(component);
 
@@ -391,7 +384,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            void GiveKit(NPCPlayerApex npc, string kit, bool give)
+            void GiveKit(HTNPlayer npc, string kit, bool give)
             {
                 if (!give) return;
 
@@ -424,57 +417,6 @@ namespace Oxide.Plugins
             }
 
             GuardSetting GetRandomNPC() => _guardSettings.GetRandom();
-        }
-
-        class GuardComponent : MonoBehaviour
-        {
-            NPCPlayerApex _npc;
-            Vector3 _targetDestination;
-
-            public void Init(Vector3 targetDestination)
-            {
-                _targetDestination  = targetDestination;
-                _npc.ServerPosition = targetDestination;
-            }
-
-            void Awake()
-            {
-                _npc = gameObject.GetComponent<NPCPlayerApex>();
-                if (_npc == null)
-                {
-                    Destroy(this);
-                    return;
-                }
-
-                Destroy(gameObject.GetComponent<Spawnable>());
-            }
-
-            void FixedUpdate() => ShouldRelocate();
-
-            void OnDestroy()
-            {
-                if (_npc == null || _npc.IsDestroyed) return;
-
-                _npc?.Kill();
-            }
-
-            void ShouldRelocate()
-            {
-                if (_npc == null || _npc.IsDestroyed) return;
-
-                float distance = Vector3.Distance(transform.position, _targetDestination);
-
-                if (_npc.AttackTarget == null && distance > 15f || _npc.AttackTarget != null && distance > _npc.Stats.MaxRoamRange)
-                {
-                    if (_npc.GetNavAgent == null || !_npc.GetNavAgent.isOnNavMesh)
-                        _npc.finalDestination = _targetDestination;
-                    else
-                        _npc.GetNavAgent.SetDestination(_targetDestination);
-
-                    _npc.Destination = _targetDestination;
-                    _npc.SetFact(NPCPlayerApex.Facts.Speed, (byte)NPCPlayerApex.SpeedEnum.Sprint, true, true);
-                }
-            }
         }
 
         class PlaneComponent : MonoBehaviour
