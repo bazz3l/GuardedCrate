@@ -376,7 +376,7 @@ namespace Oxide.Plugins
 
                     _guards.Add(component);
 
-                    Instance.timer.In(1f, () => GiveKit(component, settings.Kit, settings.UseKit));
+                    GiveKit(component, settings.Kit, settings.UseKit);
                 }
                 else
                 {
