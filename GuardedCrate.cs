@@ -117,7 +117,7 @@ namespace Oxide.Plugins
         void OnServerInitialized()
         {
             _manager = new EventManager(_config.EventTime, _config.EventDuration, _config.GuardSettings);
-            _manager.RestEvent();
+            _manager.ResetEvent();
         }
 
         void Init()
@@ -478,12 +478,7 @@ namespace Oxide.Plugins
                 _parachute.SetParent(_entity);
                 _parachute.transform.localPosition = new Vector3(0, 1f, 0);
                 _parachute.Spawn();
-
-                Rigidbody rb = _entity.GetComponent<Rigidbody>();
-                if (rb == null) return;
-
-                rb.useGravity = true;
-                rb.drag = 1.2f;
+                _entity.GetComponent<Rigidbody>().drag = 1.2f;
             }
 
             void OnCollisionEnter(Collision col)
@@ -491,6 +486,7 @@ namespace Oxide.Plugins
                 if (_parachute != null && !_parachute.IsDestroyed)
                 {
                     _parachute?.Kill();
+                    _parachute = null;
                 }
 
                 Destroy(this);
