@@ -22,7 +22,7 @@ namespace Oxide.Plugins
         const string _cargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
         const string _npcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
 
-        readonly int obstructionLayer = LayerMask.GetMask("Player (Server)", "Construction", "Deployed", "Clutter");
+        readonly int _blockedLayers = LayerMask.GetMask("Player (Server)", "Construction", "Deployed", "Clutter");
         readonly int _allowedLayers = LayerMask.GetMask("Terrain");
         readonly List<int> _blockedLayers = new List<int> {
             (int)Layer.Water,
@@ -576,7 +576,7 @@ namespace Oxide.Plugins
                     return Vector3.zero;
                 }
 
-                if (IsLayerBlocked(position, 80f, obstructionLayer) || InMonumentBounds(position) || InOrOnRock(position, "rock_"))
+                if (IsLayerBlocked(position, 80f, _blockedLayers) || InMonumentBounds(position) || InOrOnRock(position, "rock_"))
                 {
                     return Vector3.zero;
                 }
