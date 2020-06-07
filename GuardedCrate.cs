@@ -17,10 +17,11 @@ namespace Oxide.Plugins
 
         #region Fields
         const string _cratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
-        const string _chutePrefab = "assets/prefabs/misc/parachute/parachute.prefab";
         const string _markerPrefab = "assets/prefabs/tools/map/genericradiusmarker.prefab";
+        const string _chutePrefab = "assets/prefabs/misc/parachute/parachute.prefab";
         const string _cargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
         const string _npcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
+
         readonly int _allowedLayers = LayerMask.GetMask("Terrain");
         readonly List<int> _blockedLayers = new List<int> {
             (int)Layer.Water,
@@ -113,10 +114,23 @@ namespace Oxide.Plugins
         #region Oxide
         protected override void LoadDefaultConfig() => Config.WriteObject(GetDefaultConfig(), true);
 
+        protected override void LoadDefaultMessages()
+        {
+            lang.RegisterMessages(new Dictionary<string, string>
+            {
+                {"Prefix", "<color=#DC143C>Guarded Crate</color>: "},
+                {"BuildingBlocked", "Event active in this area building blocked."},
+                {"EliminateAll", "All guards must be eliminated."},
+                {"EventPre", "Prepare for coordinates."},
+                {"EventStart", "Guards with valuable cargo arriving at ({0}) ETA 30 seconds! Prepare to attack or run for your life."},
+                {"EventComplete", "Event completed, crate is now open loot up fast."}
+            }, this);
+        }
+
         void OnServerInitialized()
         {
             _manager = new EventManager(_config.EventTime, _config.EventDuration, _config.GuardSettings);
-            _manager.ResetEvent();
+            _manager.StartEvent(GetEventPosition());
         }
 
         void Init()
@@ -143,7 +157,7 @@ namespace Oxide.Plugins
 
             if (_manager.IsEventActive() && _manager.IsBuildBlocked(player.ServerPosition))
             {
-                player.ChatMessage("<color=#DC143C>Guarded Loot</color>: Event active in this area building blocked.");
+                player.ChatMessage(Lang("BuildingBlocked", player.UserIDString));
                 
                 return false;
             }
@@ -155,7 +169,7 @@ namespace Oxide.Plugins
         {
             if (_manager.IsEventActive() && _manager.IsEventLootable(crate.net.ID))
             {
-                player.ChatMessage("<color=#DC143C>Guarded Loot</color>: All guards must be eliminated.");
+                player.ChatMessage(Lang("EliminateAll", player.UserIDString));
 
                 return false;
             }
@@ -177,6 +191,7 @@ namespace Oxide.Plugins
             Timer _eventTimer;
             bool _eventActive;
             bool _restainedMove;
+
             float _eventTime;
             float _eventDuration;
 
@@ -202,7 +217,7 @@ namespace Oxide.Plugins
 
                 _eventTimer = Instance.timer.Once(_eventDuration, () => ResetEvent());
 
-                MessageAll("<color=#DC143C>Guarded Crate</color>: Prepare for coordinates.");
+                Instance.MessageAll("EventPre");
             }
 
             public void ResetEvent(bool completed = false)
@@ -243,7 +258,7 @@ namespace Oxide.Plugins
 
                 ResetEvent(true);
 
-                MessageAll($"<color=#DC143C>Guarded Crate</color>: Event completed, crate is now open loot up fast.");
+                Instance.MessageAll("EventComplete");
             }
 
             void OpenCrate()
@@ -302,7 +317,7 @@ namespace Oxide.Plugins
 
                 Instance.timer.In(30f, () => SingletonComponent<ServerMgr>.Instance.StartCoroutine(SpawnAI()));
 
-                MessageAll($"<color=#DC143C>Guarded Crate</color>: Guards with valuable cargo arriving at ({GetGrid(_eventPosition)}) ETA 30 seconds! Prepare to attack or run for your life.");
+                Instance.MessageAll("EventStart", Instance.GetGrid(_eventPosition));
             }
 
             public void SpawnPlane(Vector3 position)
@@ -568,7 +583,9 @@ namespace Oxide.Plugins
             {
                 position = hit.point;
 
-                if (_blockedLayers.Contains(hit.collider.gameObject.layer) || InMonumentBounds(position) || InOrOnRock(position, "rock_"))
+                if (_blockedLayers.Contains(hit.collider.gameObject.layer) 
+                || InMonumentBounds(position) 
+                || InOrOnRock(position, "rock_"))
                 {
                     return Vector3.zero;
                 }
@@ -615,8 +632,10 @@ namespace Oxide.Plugins
 
             return false;
         }
+
+        string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
         
-        static string GetGrid(Vector3 position)
+        string GetGrid(Vector3 position)
         {
             char letter = 'A';
 
@@ -627,11 +646,11 @@ namespace Oxide.Plugins
             return $"{letter}{z}";
         }
 
-        static void MessageAll(string message)
+        void MessageAll(string key, params object[] args)
         {
             foreach (BasePlayer player in BasePlayer.activePlayerList)
             {
-                player.ChatMessage(message);
+                player.ChatMessage(Lang("Prefix", player.UserIDString) + Lang(key, player.UserIDString, args));
             }
         }
         #endregion
