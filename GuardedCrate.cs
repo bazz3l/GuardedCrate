@@ -22,11 +22,12 @@ namespace Oxide.Plugins
         const string _cargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
         const string _npcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
 
-        readonly int _allowedLayers = LayerMask.GetMask("Terrain", "World", "Default");
+        readonly int obstructionLayer = LayerMask.GetMask("Player (Server)", "Construction", "Deployed", "Clutter");
+        readonly int _allowedLayers = LayerMask.GetMask("Terrain");
         readonly List<int> _blockedLayers = new List<int> {
             (int)Layer.Water,
-            (int)Layer.Construction,
             (int)Layer.Trigger,
+            (int)Layer.Construction,
             (int)Layer.Prevent_Building,
             (int)Layer.Deployed,
             (int)Layer.Tree,
@@ -548,7 +549,7 @@ namespace Oxide.Plugins
             {
                 position = GetValidLocation(GetRandomPosition());
 
-                if (position == Vector3.zero || WaterLevel.Test(position)) continue;
+                if (position == Vector3.zero) continue;
 
             } while(position == Vector3.zero && --maxTries > 0);
 
@@ -566,24 +567,75 @@ namespace Oxide.Plugins
 
             position.y += 250f;
 
-            if (!Physics.Raycast(position, Vector3.down, out hit, Mathf.Infinity, _allowedLayers))
+            if (Physics.Raycast(position, Vector3.down, out hit, Mathf.Infinity, _allowedLayers, QueryTriggerInteraction.Ignore))
             {
-                return Vector3.zero;
-            }
+                position = hit.point;
 
-            if (IsMonumentBounds(hit.point) || hit.collider.name.Contains("rock_") ||_blockedLayers.Contains(hit.collider.gameObject.layer))
-            {
-                return Vector3.zero;
-            }
+                if (_blockedLayers.Contains(hit.collider.gameObject.layer))
+                {
+                    return Vector3.zero;
+                }
 
-            return hit.point;
+                if (IsLayerBlocked(position, 80f, obstructionLayer) || InMonumentBounds(position) || InOrOnRock(position, "rock_"))
+                {
+                    return Vector3.zero;
+                }
+
+                if (WaterLevel.Test(position))
+                {
+                    return Vector3.zero;
+                }
+
+                return position;
+            }
+            
+            return Vector3.zero;
         }
 
-        bool IsMonumentBounds(Vector3 position)
+        bool IsLayerBlocked(Vector3 position, float radius, int mask)
+        {
+            List<Collider> colliders = new List<Collider>();
+            Vis.Colliders<Collider>(position, radius, colliders, mask, QueryTriggerInteraction.Ignore);
+
+            colliders.RemoveAll(collider => (collider.ToBaseEntity()?.IsNpc ?? false) || !(collider.ToBaseEntity()?.OwnerID.IsSteamId() ?? true));
+
+            bool blocked = colliders.Count > 0;
+
+            colliders.Clear();
+            colliders = null;
+
+            return blocked;
+        }
+
+        bool IsRockTooLarge(Bounds bounds, float extents = 1.5f)
+        {
+            return bounds.extents.Max() > extents;
+        }
+
+        bool InOrOnRock(Vector3 position, string meshName, float radius = 2f)
+        {
+            bool flag = false;
+
+            int hits = Physics.OverlapSphereNonAlloc(position, radius, Vis.colBuffer, Layers.Mask.World, QueryTriggerInteraction.Ignore);
+
+            for (int i = 0; i < hits; i++)
+            {
+                if (Vis.colBuffer[i].name.StartsWith(meshName) && IsRockTooLarge(Vis.colBuffer[i].bounds))
+                {
+                    flag = true;
+                }
+
+                Vis.colBuffer[i] = null;
+            }
+            
+            return flag;
+        }
+
+        bool InMonumentBounds(Vector3 position)
         {
             foreach (MonumentInfo monument in _monuments)
             {
-                if (monument.Bounds.Contains(position))
+                if (monument.IsInBounds(position))
                 {
                     return true;
                 }
@@ -591,8 +643,7 @@ namespace Oxide.Plugins
 
             return false;
         }
-
-        // Thanks to yetzt with fixed grid
+        
         static string GetGrid(Vector3 position)
         {
             char letter = 'A';
