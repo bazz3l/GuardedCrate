@@ -21,8 +21,6 @@ namespace Oxide.Plugins
         const string _markerPrefab = "assets/prefabs/tools/map/genericradiusmarker.prefab";
         const string _cargoPrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
         const string _npcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
-
-        readonly int _blockedLayers = LayerMask.GetMask("Player (Server)", "Construction", "Deployed", "Clutter");
         readonly int _allowedLayers = LayerMask.GetMask("Terrain");
         readonly List<int> _blockedLayers = new List<int> {
             (int)Layer.Water,
@@ -179,7 +177,6 @@ namespace Oxide.Plugins
             Timer _eventTimer;
             bool _eventActive;
             bool _restainedMove;
-
             float _eventTime;
             float _eventDuration;
 
@@ -550,7 +547,7 @@ namespace Oxide.Plugins
                 position = GetValidLocation(GetRandomPosition());
 
                 if (position == Vector3.zero) continue;
-
+                
             } while(position == Vector3.zero && --maxTries > 0);
 
             return position;
@@ -571,12 +568,7 @@ namespace Oxide.Plugins
             {
                 position = hit.point;
 
-                if (_blockedLayers.Contains(hit.collider.gameObject.layer))
-                {
-                    return Vector3.zero;
-                }
-
-                if (IsLayerBlocked(position, 80f, _blockedLayers) || InMonumentBounds(position) || InOrOnRock(position, "rock_"))
+                if (_blockedLayers.Contains(hit.collider.gameObject.layer) || InMonumentBounds(position) || InOrOnRock(position, "rock_"))
                 {
                     return Vector3.zero;
                 }
