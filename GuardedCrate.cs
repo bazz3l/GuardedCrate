@@ -584,11 +584,6 @@ namespace Oxide.Plugins
             return Vector3.zero;
         }
 
-        bool IsRockTooLarge(Bounds bounds, float extents = 1.5f)
-        {
-            return bounds.extents.Max() > extents;
-        }
-
         bool InOrOnRock(Vector3 position, string meshName, float radius = 2f)
         {
             bool flag = false;
@@ -597,7 +592,7 @@ namespace Oxide.Plugins
 
             for (int i = 0; i < hits; i++)
             {
-                if (Vis.colBuffer[i].name.StartsWith(meshName) && IsRockTooLarge(Vis.colBuffer[i].bounds))
+                if (Vis.colBuffer[i].name.StartsWith(meshName) && Vis.colBuffer[i].bounds.extents.Max() > 1.5f)
                 {
                     flag = true;
                 }
