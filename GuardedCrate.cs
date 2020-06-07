@@ -547,7 +547,7 @@ namespace Oxide.Plugins
                 position = GetValidLocation(GetRandomPosition());
 
                 if (position == Vector3.zero) continue;
-                
+
             } while(position == Vector3.zero && --maxTries > 0);
 
             return position;
@@ -582,21 +582,6 @@ namespace Oxide.Plugins
             }
             
             return Vector3.zero;
-        }
-
-        bool IsLayerBlocked(Vector3 position, float radius, int mask)
-        {
-            List<Collider> colliders = new List<Collider>();
-            Vis.Colliders<Collider>(position, radius, colliders, mask, QueryTriggerInteraction.Ignore);
-
-            colliders.RemoveAll(collider => (collider.ToBaseEntity()?.IsNpc ?? false) || !(collider.ToBaseEntity()?.OwnerID.IsSteamId() ?? true));
-
-            bool blocked = colliders.Count > 0;
-
-            colliders.Clear();
-            colliders = null;
-
-            return blocked;
         }
 
         bool IsRockTooLarge(Bounds bounds, float extents = 1.5f)
