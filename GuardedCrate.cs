@@ -17,7 +17,7 @@ namespace Oxide.Plugins
         
         /*
          * TODO
-         * Remove ability to build in event areas to prevet people walling/building off crates
+         * Remove ability to build in event areas to prevent people walling/building off crates
          * Different loot/guard levels
          */
         
