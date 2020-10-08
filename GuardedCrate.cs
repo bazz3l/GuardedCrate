@@ -13,14 +13,14 @@ namespace Oxide.Plugins
     [Description("Spawns a hackable crate at a random location guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
-        #region Fields
-        
         /*
          * TODO
          * Remove ability to build in event areas to prevent people walling/building off crates
          * Different loot/guard levels
          */
         
+        #region Fields
+
         private const string CratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
         private const string MarkerPrefab = "assets/prefabs/tools/map/genericradiusmarker.prefab";
         private const string ChutePrefab = "assets/prefabs/misc/parachute/parachute.prefab";
