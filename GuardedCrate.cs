@@ -49,16 +49,16 @@ namespace Oxide.Plugins
 
         private class PluginConfig
         {
-            [JsonProperty(PropertyName = "EventDuration (how long the event lasts)")]
+            [JsonProperty(PropertyName = "EventDuration (duration the event should last for)")]
             public float EventDuration;
 
-            [JsonProperty(PropertyName = "NpcCount (total number of guards to spawn)")]
+            [JsonProperty(PropertyName = "NpcCount (number of guards to spawn)")]
             public int NpcCount;
             
-            [JsonProperty(PropertyName = "NpcHealth (health npcs will spawn with)")]
+            [JsonProperty(PropertyName = "NpcHealth (health guards spawn with)")]
             public float NpcHealth;
             
-            [JsonProperty(PropertyName = "NpcRadius (distance npcs will roam)")]
+            [JsonProperty(PropertyName = "NpcRadius (max distance guards will roam)")]
             public float NpcRadius;
         }
         
