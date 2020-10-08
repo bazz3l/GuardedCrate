@@ -27,6 +27,7 @@ namespace Oxide.Plugins
         private const string NpcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
         private const string PlanePrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
         
+        private static readonly LayerMask CollisionLayer = LayerMask.GetMask("Water", "Tree",  "Debris", "Clutter",  "Default", "Resource", "Construction", "Terrain", "World", "Deployed");
         private readonly HashSet<CrateEvent> CrateEvents = new HashSet<CrateEvent>();
         private PluginConfig _config;
         private static GuardedCrate _plugin;
@@ -342,15 +343,13 @@ namespace Oxide.Plugins
 
         private class DropComponent : MonoBehaviour
         {
-            private readonly LayerMask CollisionLayer = LayerMask.GetMask("Water", "Tree",  "Debris", "Clutter",  "Default", "Resource", "Construction", "Terrain", "World", "Deployed");
-            private BaseEntity Parachute;
+            private BaseEntity Chute;
             private BaseEntity Crate;
             private bool HasLanded;
 
             private void Awake()
             {
                 Crate = gameObject.GetComponent<BaseEntity>();
-                
                 Crate.GetComponent<Rigidbody>().drag = 1.2f;
 
                 SpawnChute();
@@ -378,21 +377,21 @@ namespace Oxide.Plugins
             
             private void SpawnChute()
             {
-                Parachute = GameManager.server.CreateEntity(ChutePrefab);
-                Parachute.enableSaving = false;
-                Parachute.transform.localPosition = Vector3.zero;
-                Parachute.SetParent(Crate);
-                Parachute.Spawn();
+                Chute = GameManager.server.CreateEntity(ChutePrefab);
+                Chute.enableSaving = false;
+                Chute.transform.localPosition = Vector3.zero;
+                Chute.SetParent(Crate);
+                Chute.Spawn();
             }
 
             private void RemoveChute()
             {
-                if (!IsValid(Parachute))
+                if (!IsValid(Chute))
                 {
                     return;
                 }
                 
-                Parachute.Kill();
+                Chute.Kill();
             }
         }
 
