@@ -72,7 +72,7 @@ namespace Oxide.Plugins
         {
             lang.RegisterMessages (new Dictionary<string, string>
             {
-                { "EventStarted", "Event started at {0}, armed guards." },
+                { "EventStarted", "Event started at {0}, High value loot protected by armed guards." },
                 { "EventEnded", "Event completed at {0}." },
             }, this);
         }
