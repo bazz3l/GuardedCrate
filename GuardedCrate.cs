@@ -378,6 +378,11 @@ namespace Oxide.Plugins
             private void SpawnChute()
             {
                 Chute = GameManager.server.CreateEntity(ChutePrefab);
+                if (Chute == null)
+                {
+                    return;
+                }
+                
                 Chute.enableSaving = false;
                 Chute.transform.localPosition = Vector3.zero;
                 Chute.SetParent(Crate);
