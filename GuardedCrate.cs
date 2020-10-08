@@ -239,7 +239,7 @@ namespace Oxide.Plugins
                 }
                 
                 _plane.Spawn();
-                _plane.gameObject.AddComponent<CargoComponent>().SetEvent(this);
+                _plane.gameObject.GetOrAddComponent<CargoComponent>().SetEvent(this);
             }
             
             private void SpawnCrate()
