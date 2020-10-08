@@ -159,7 +159,7 @@ namespace Oxide.Plugins
             {
                 _position = position;
 
-                SpawnCreate();
+                SpawnCrate();
                 SpawnRoutine();
 
                 _eventTimer = _plugin.timer.In(EventDuration, StopEvent);
@@ -242,7 +242,7 @@ namespace Oxide.Plugins
                 _plane.gameObject.AddComponent<CargoComponent>().SetEvent(this);
             }
             
-            private void SpawnCreate()
+            private void SpawnCrate()
             {
                 _crate = GameManager.server.CreateEntity(CratePrefab, _position, Quaternion.identity) as HackableLockedCrate;
                 if (_crate == null)
