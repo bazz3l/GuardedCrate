@@ -14,9 +14,7 @@ namespace Oxide.Plugins
     public class GuardedCrate : RustPlugin
     {
         /*
-         * TODO
-         * Remove ability to build in event areas to prevent people walling/building off crates
-         * Different event tiers
+         * TODO Remove ability to build in event areas to prevent people walling/building off crates
          */
         
         #region Fields
@@ -119,6 +117,8 @@ namespace Oxide.Plugins
         {
             lang.RegisterMessages (new Dictionary<string, string>
             {
+                { "InvalidSyntax", "gc start|stop" },
+                { "Permission", "No permission" },
                 { "EventStarted", "Event started at {0}, High value loot protected by armed guards." },
                 { "EventEnded", "Event completed at {0}." },
             }, this);
@@ -527,19 +527,19 @@ namespace Oxide.Plugins
         #endregion
 
         #region Command
-        
+
         [ChatCommand("gc")]
-        private void CommandEvent(BasePlayer player, string command, string[] args)
+        private void GCChatCommand(BasePlayer player, string command, string[] args)
         {
             if (!player.IsAdmin)
             {
-                player.ChatMessage("Unknown command: gc");
+                player.ChatMessage(Lang("NoPermission"));
                 return;
             }
             
             if (args.Length != 1)
             {
-                player.ChatMessage("/gc start|stop");
+                player.ChatMessage(Lang("InvalidSyntax", player.UserIDString));
                 return;
             }
             
@@ -552,7 +552,36 @@ namespace Oxide.Plugins
                     StopEvents();
                     break;
                 default:
-                    player.ChatMessage("/gc start|stop");
+                    player.ChatMessage(Lang("InvalidSyntax", player.UserIDString));
+                    break;
+            }
+        }
+        
+        [ConsoleCommand("gc")]
+        private void GCConsoleCommand(ConsoleSystem.Arg arg)
+        {
+            if (!arg.IsRcon)
+            {
+                arg.ReplyWith(Lang("NoPermission"));
+                return;
+            }
+            
+            if (!arg.HasArgs())
+            {
+                arg.ReplyWith(Lang("InvalidSyntax"));
+                return;
+            }
+            
+            switch (arg.GetString(0))
+            {
+                case "start":
+                    StartEvent();
+                    break;
+                case "stop":
+                    StopEvents();
+                    break;
+                default:
+                    arg.ReplyWith(Lang("InvalidSyntax"));
                     break;
             }
         }
