@@ -16,7 +16,7 @@ namespace Oxide.Plugins
         /*
          * TODO
          * Remove ability to build in event areas to prevent people walling/building off crates
-         * Different loot/guard levels
+         * Different event tiers
          */
         
         #region Fields
@@ -40,20 +40,59 @@ namespace Oxide.Plugins
         {
             return new PluginConfig
             {
-                EventDuration = 1800f,
-                NpcCount = 10,
-                NpcHealth = 150f,
-                NpcRadius = 80f,
-                UseKits = false,
-                KitName = ""
+                EventTiers = new Dictionary<EventTier, TierSetting>
+                {
+                    {
+                        EventTier.Easy, new TierSetting
+                        {
+                            EventDuration = 1800f,
+                            NpcRadius = 15f,
+                            NpcCount = 4,
+                            NpcHealth = 100,
+                            MarkerColor = "#32a844"
+                        }
+                    },
+                    {
+                        EventTier.Medium, new TierSetting
+                        {
+                            EventDuration = 1800f,
+                            NpcRadius = 25f,
+                            NpcCount = 6,
+                            NpcHealth = 150,
+                            MarkerColor = "#e6aa20"
+                        }
+                    },
+                    {
+                        EventTier.Hard, new TierSetting
+                        {
+                            EventDuration = 1800f,
+                            NpcRadius = 50f,
+                            NpcCount = 8,
+                            NpcHealth = 200,
+                            MarkerColor = "#e81728"
+                        }
+                    }
+                }
             };
         }
 
         private class PluginConfig
         {
+            [JsonProperty(PropertyName = "EventTiers (specify different tiers)")]
+            public Dictionary<EventTier, TierSetting> EventTiers = new Dictionary<EventTier, TierSetting>();
+        }
+
+        private class TierSetting
+        {
             [JsonProperty(PropertyName = "EventDuration (duration the event should last for)")]
             public float EventDuration;
-
+            
+            [JsonProperty(PropertyName = "UseKits (use custom kits plugin)")]
+            public bool UseKits;
+            
+            [JsonProperty(PropertyName = "KitName (custom kit name)")]
+            public string KitName;
+            
             [JsonProperty(PropertyName = "NpcCount (number of guards to spawn)")]
             public int NpcCount;
             
@@ -62,12 +101,12 @@ namespace Oxide.Plugins
             
             [JsonProperty(PropertyName = "NpcRadius (max distance guards will roam)")]
             public float NpcRadius;
+
+            [JsonProperty(PropertyName = "MarkerColor (marker color for tier)")]
+            public string MarkerColor;
             
-            [JsonProperty(PropertyName = "UseKits (use custom kits plugin)")]
-            public bool UseKits;
-            
-            [JsonProperty(PropertyName = "KitName (custom kit name)")]
-            public string KitName;
+            [JsonProperty(PropertyName = "CrateItems (items to spawn in crate)")]
+            public Dictionary<string, int> CrateItems = new Dictionary<string, int>();
         }
         
         #endregion
@@ -105,20 +144,21 @@ namespace Oxide.Plugins
         #endregion
         
         #region Core
+
+        private enum EventTier
+        {
+            Easy,
+            Medium,
+            Hard
+        };
         
         private void StartEvent()
         {
-            CrateEvent crateEvent = new CrateEvent
-            {
-                EventDuration = _config.EventDuration,
-                NpcRadius = _config.NpcRadius,
-                NpcHealth = _config.NpcHealth,
-                NpcCount = _config.NpcCount,
-                UseKits = _config.UseKits,
-                KitName = _config.KitName               
-            };
+            KeyValuePair<EventTier, TierSetting> eventSettings = _config.EventTiers.ElementAtOrDefault(UnityEngine.Random.Range(0, _config.EventTiers.Count));
 
-            crateEvent.PreEvent();
+            CrateEvent crateEvent = new CrateEvent();
+
+            crateEvent.PreEvent(eventSettings.Value);
         }
 
         private void StopEvents()
@@ -160,15 +200,12 @@ namespace Oxide.Plugins
             private Coroutine _coroutine;
             private Timer _eventTimer;
             private bool _eventCompleted;
-            public float EventDuration;
-            public int NpcCount;
-            public float NpcHealth;
-            public float NpcRadius;
-            public bool UseKits;
-            public string KitName;
+            private TierSetting _eventSettings;
 
-            public void PreEvent()
+            public void PreEvent(TierSetting eventSettings)
             {
+                _eventSettings = eventSettings;
+                
                 SpawnPlane();
                 
                 _plugin.AddEvent(this);
@@ -210,13 +247,13 @@ namespace Oxide.Plugins
                 {
                     CommunityEntity.ServerInstance.StopCoroutine(_coroutine);
                 }
-
+                
                 _coroutine = null;
             }
 
             private void StartDespawnTimer()
             {
-                _eventTimer = _plugin.timer.Once(EventDuration, () => StopEvent());
+                _eventTimer = _plugin.timer.Once(_eventSettings.EventDuration, () => StopEvent());
             }
 
             private void SpawnPlane()
@@ -249,10 +286,14 @@ namespace Oxide.Plugins
                 {
                     return;
                 }
+
+                Color color;
+
+                ColorUtility.TryParseHtmlString(_eventSettings.MarkerColor, out color);
                 
                 marker.enableSaving = false;
                 marker.alpha  = 0.6f;
-                marker.color1 = Color.red;
+                marker.color1 = color;
                 marker.color2 = Color.white;
                 marker.radius = 0.5f;
                 marker.SetParent(_crate, true, true);
@@ -269,21 +310,21 @@ namespace Oxide.Plugins
                 }
 
                 npc.enableSaving = false;
-                npc.SetMaxHealth(NpcHealth);
+                npc.SetMaxHealth(_eventSettings.NpcHealth);
                 npc.Spawn();
-                npc._aiDomain.MovementRadius = NpcRadius;
+                npc._aiDomain.MovementRadius = _eventSettings.NpcRadius;
                 npc._aiDomain.Movement = HTNDomain.MovementRule.FreeMove;
 
                 NpcPlayers.Add(npc);
 
-                npc.Invoke(() => GiveKit(npc, KitName, UseKits), 1f);
+                npc.Invoke(() => GiveKit(npc, _eventSettings.KitName, _eventSettings.UseKits), 1f);
             }
 
             private IEnumerator SpawnAI()
             {
-                for (int i = 0; i < NpcCount; i++)
+                for (int i = 0; i < _eventSettings.NpcCount; i++)
                 {
-                    SpawnNpc(GetPositionAround(_position, 5f, (360 / NpcCount * i)), Quaternion.identity);
+                    SpawnNpc(GetPositionAround(_position, 5f, (360 / _eventSettings.NpcCount * i)), Quaternion.identity);
                     
                     yield return new WaitForSeconds(0.75f);
                 }
@@ -437,7 +478,7 @@ namespace Oxide.Plugins
         #endregion
         
         #region Helpers
-        
+
         private string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
         
         private static Vector3 GetPositionAround(Vector3 center, float radius, float angle)
