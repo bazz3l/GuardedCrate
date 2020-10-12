@@ -358,11 +358,8 @@ namespace Oxide.Plugins
 
                 foreach (BaseEntity npc in npcList)
                 {
-                    if (!IsValid(npc))
-                    {
-                        continue;
-                    }
-                    
+                    if (!IsValid(npc)) continue;
+
                     npc.Kill();
                 }
 
