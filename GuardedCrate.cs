@@ -9,7 +9,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.2.1")]
+    [Info("Guarded Crate", "Bazz3l", "1.2.2")]
     [Description("Spawns hackable crates at a random location guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -124,11 +124,6 @@ namespace Oxide.Plugins
             }, this);
         }
 
-        private void OnServerInitialized()
-        {
-            //
-        }
-
         private void Init()
         {
             _plugin = this;
@@ -152,18 +147,32 @@ namespace Oxide.Plugins
             Hard
         };
         
-        private void StartEvent()
+        private void StartEvent(BasePlayer player)
         {
             KeyValuePair<EventTier, TierSetting> eventSettings = _config.EventTiers.ElementAtOrDefault(UnityEngine.Random.Range(0, _config.EventTiers.Count));
 
             CrateEvent crateEvent = new CrateEvent();
 
             crateEvent.PreEvent(eventSettings.Value);
+
+            if (player == null)
+            {
+                return;
+            }
+            
+            player.ChatMessage("Event starting soon, stand by for cords.");
         }
 
-        private void StopEvents()
+        private void StopEvents(BasePlayer player)
         {
             CommunityEntity.ServerInstance.StartCoroutine(DespawnRoutine());
+            
+            if (player == null)
+            {
+                return;
+            }
+            
+            player.ChatMessage("Cleaning up events.");
         }
         
         private IEnumerator DespawnRoutine()
@@ -313,7 +322,7 @@ namespace Oxide.Plugins
                 npc.SetMaxHealth(_eventSettings.NpcHealth);
                 npc.Spawn();
                 npc._aiDomain.MovementRadius = _eventSettings.NpcRadius;
-                npc._aiDomain.Movement = HTNDomain.MovementRule.FreeMove;
+                npc._aiDomain.Movement = HTNDomain.MovementRule.RestrainedMove;
 
                 NpcPlayers.Add(npc);
 
@@ -324,7 +333,9 @@ namespace Oxide.Plugins
             {
                 for (int i = 0; i < _eventSettings.NpcCount; i++)
                 {
-                    SpawnNpc(GetPositionAround(_position, 5f, (360 / _eventSettings.NpcCount * i)), Quaternion.identity);
+                    Vector3 position = GetPositionAround(_position, 5f, (360 / _eventSettings.NpcCount * i));
+                    
+                    SpawnNpc(position, Quaternion.LookRotation(position));
                     
                     yield return new WaitForSeconds(0.75f);
                 }
@@ -358,8 +369,11 @@ namespace Oxide.Plugins
 
                 foreach (BaseEntity npc in npcList)
                 {
-                    if (!IsValid(npc)) continue;
-
+                    if (!IsValid(npc))
+                    {
+                        continue;
+                    }
+                    
                     npc.Kill();
                 }
 
@@ -401,7 +415,7 @@ namespace Oxide.Plugins
             private void Update()
             {
                 float time = Mathf.InverseLerp(0.0f, _plane.secondsToTake, _plane.secondsTaken);
-                
+
                 if (!_hasDropped && (double) time >= 0.5)
                 {
                     _hasDropped = true;
@@ -543,10 +557,10 @@ namespace Oxide.Plugins
             switch (args[0])
             {
                 case "start":
-                    StartEvent();
+                    StartEvent(player);
                     break;
                 case "stop":
-                    StopEvents();
+                    StopEvents(player);
                     break;
                 default:
                     player.ChatMessage(Lang("InvalidSyntax", player.UserIDString));
@@ -572,10 +586,10 @@ namespace Oxide.Plugins
             switch (arg.GetString(0))
             {
                 case "start":
-                    StartEvent();
+                    StartEvent(null);
                     break;
                 case "stop":
-                    StopEvents();
+                    StopEvents(null);
                     break;
                 default:
                     arg.ReplyWith(Lang("InvalidSyntax"));
