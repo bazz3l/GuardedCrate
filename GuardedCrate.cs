@@ -119,8 +119,8 @@ namespace Oxide.Plugins
             {
                 { "InvalidSyntax", "gc start|stop" },
                 { "Permission", "No permission" },
-                { "EventStarted", "Event started at {0}, High value loot protected by armed guards." },
-                { "EventEnded", "Event completed at {0}." },
+                { "EventStarted", "<color=#DC143C>Guarded Crate</color>: Event started at {0}, High value loot protected by armed guards." },
+                { "EventEnded", "<color=#DC143C>Guarded Crate</color>: Event completed at {0}." },
             }, this);
         }
 
