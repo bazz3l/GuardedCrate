@@ -103,7 +103,7 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "NpcRadius (max distance guards will roam)")]
             public float NpcRadius;
             
-            [JsonProperty(PropertyName = "NpcAgression (max aggression distance guards will target)")]
+            [JsonProperty(PropertyName = "NpcAggression (max aggression distance guards will target)")]
             public float NpcAggression;
 
             [JsonProperty(PropertyName = "MarkerColor (marker color for tier)")]
@@ -343,7 +343,7 @@ namespace Oxide.Plugins
             {
                 for (int i = 0; i < _eventSettings.NpcCount; i++)
                 {
-                    Vector3 position = GetPositionAround(_position, 5f, (360 / _eventSettings.NpcCount * i));
+                    Vector3 position = PositionAround(_position, 5f, (360 / _eventSettings.NpcCount * i));
                     
                     SpawnNpc(position, Quaternion.LookRotation(position));
                     
@@ -502,15 +502,19 @@ namespace Oxide.Plugins
 
         private string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
         
-        private static Vector3 GetPositionAround(Vector3 center, float radius, float angle)
+        private static Vector3 PositionAround(Vector3 position, float radius, float angle)
         {
-            Vector3 position = center;
-            
             position.x += radius * Mathf.Sin(angle * Mathf.Deg2Rad);
             position.z += radius * Mathf.Cos(angle * Mathf.Deg2Rad);
-            position.y = TerrainMeta.HeightMap.GetHeight(position);
+
+            RaycastHit hit;
             
-            return position;
+            if (!Physics.Raycast(position, Vector3.down, out hit, float.PositiveInfinity, CollisionLayer))
+            {
+                return Vector3.zero;
+            }
+
+            return hit.point;
         }
         
         private static string GetGrid(Vector3 position)
