@@ -130,7 +130,7 @@ namespace Oxide.Plugins
             _config = Config.ReadObject<PluginConfig>();
         }
 
-        private void Unload() => StopEvents();
+        private void Unload() => StopEvents(null);
         
         private void OnEntityDeath(HTNPlayer npc, HitInfo hitInfo) => OnAIDeath(npc);
 
