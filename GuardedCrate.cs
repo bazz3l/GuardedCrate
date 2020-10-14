@@ -9,7 +9,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.2.2")]
+    [Info("Guarded Crate", "Bazz3l", "1.2.3")]
     [Description("Spawns hackable crates at a random location guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -46,7 +46,7 @@ namespace Oxide.Plugins
                             EventDuration = 1800f,
                             NpcAggression = 100f,
                             NpcRadius = 15f,
-                            NpcCount = 4,
+                            NpcCount = 6,
                             NpcHealth = 100,
                             MarkerColor = "#32a844"
                         }
@@ -57,7 +57,7 @@ namespace Oxide.Plugins
                             EventDuration = 1800f,
                             NpcAggression = 120f,
                             NpcRadius = 25f,
-                            NpcCount = 6,
+                            NpcCount = 8,
                             NpcHealth = 150,
                             MarkerColor = "#e6aa20"
                         }
@@ -68,7 +68,7 @@ namespace Oxide.Plugins
                             EventDuration = 1800f,
                             NpcAggression = 150f,
                             NpcRadius = 50f,
-                            NpcCount = 8,
+                            NpcCount = 10,
                             NpcHealth = 200,
                             MarkerColor = "#e81728"
                         }
@@ -79,6 +79,12 @@ namespace Oxide.Plugins
 
         private class PluginConfig
         {
+            [JsonProperty(PropertyName = "AutoEvent (enables auto event spawns)")]
+            public bool EnableAutoEvent = true;
+            
+            [JsonProperty(PropertyName = "AutoEventDuration (time until new event spawns)")]
+            public float AutoEventDuration = 1800f;
+            
             [JsonProperty(PropertyName = "EventTiers (specify different tiers)")]
             public Dictionary<EventTier, TierSetting> EventTiers = new Dictionary<EventTier, TierSetting>();
         }
@@ -128,6 +134,16 @@ namespace Oxide.Plugins
                 { "EventStarted", "<color=#DC143C>Guarded Crate</color>: Event started at {0}, High value loot protected by armed guards." },
                 { "EventEnded", "<color=#DC143C>Guarded Crate</color>: Event completed at {0}." },
             }, this);
+        }
+
+        private void OnServerInitialized()
+        {
+            if (!_config.EnableAutoEvent)
+            {
+                return;
+            }
+            
+            timer.Every(_config.AutoEventDuration, () => StartEvent(null));
         }
 
         private void Init()
