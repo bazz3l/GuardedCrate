@@ -9,7 +9,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.2.3")]
+    [Info("Guarded Crate", "Bazz3l", "1.2.4")]
     [Description("Spawns hackable crates at a random location guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -153,6 +153,22 @@ namespace Oxide.Plugins
         }
 
         private void Unload() => StopEvents(null);
+
+        private void OnPlayerConnected(BasePlayer player)
+        {
+            if (player == null)
+            {
+                return;
+            }
+
+            if (player.IsReceivingSnapshot)
+            {
+                timer.In(3f, () => OnPlayerConnected(player));
+                return;
+            }
+
+            RefreshEvents();
+        }
         
         private void OnEntityDeath(HTNPlayer npc, HitInfo hitInfo) => OnAIDeath(npc);
 
@@ -196,6 +212,16 @@ namespace Oxide.Plugins
             
             player.ChatMessage("Cleaning up events.");
         }
+
+        private void RefreshEvents()
+        {
+            for (int i = 0; i < _crateEvents.Count; i++)
+            {
+                CrateEvent crateEvent = _crateEvents.ElementAt(i);
+
+                crateEvent?.RefreshEvent();
+            }
+        }
         
         private IEnumerator DespawnRoutine()
         {
@@ -225,6 +251,7 @@ namespace Oxide.Plugins
         private class CrateEvent
         {
             public readonly List<HTNPlayer> NpcPlayers = new List<HTNPlayer>();
+            private MapMarkerGenericRadius _marker;
             private HackableLockedCrate _crate;
             private CargoPlane _plane;
             private Vector3 _position;
@@ -265,6 +292,16 @@ namespace Oxide.Plugins
                 DespawnAI();
                 
                 _plugin.DelEvent(this);
+            }
+
+            public void RefreshEvent()
+            {
+                if (!IsValid(_marker))
+                {
+                    return;
+                }
+                
+                _marker.SendUpdate();
             }
 
             private void StartSpawnRoutine()
@@ -312,8 +349,8 @@ namespace Oxide.Plugins
                 _crate.Spawn();
                 _crate.gameObject.GetOrAddComponent<DropComponent>();
                 
-                MapMarkerGenericRadius marker = GameManager.server.CreateEntity(MarkerPrefab, _position) as MapMarkerGenericRadius;
-                if (marker == null)
+                _marker = GameManager.server.CreateEntity(MarkerPrefab, _position) as MapMarkerGenericRadius;
+                if (_marker == null)
                 {
                     return;
                 }
@@ -322,14 +359,14 @@ namespace Oxide.Plugins
 
                 ColorUtility.TryParseHtmlString(_eventSettings.MarkerColor, out color);
                 
-                marker.enableSaving = false;
-                marker.alpha  = 0.6f;
-                marker.color1 = color;
-                marker.color2 = Color.white;
-                marker.radius = 0.5f;
-                marker.SetParent(_crate, true, true);
-                marker.Spawn();
-                marker.SendUpdate();
+                _marker.enableSaving = false;
+                _marker.alpha  = 0.6f;
+                _marker.color1 = color;
+                _marker.color2 = Color.white;
+                _marker.radius = 0.5f;
+                _marker.SetParent(_crate, true, true);
+                _marker.Spawn();
+                _marker.SendUpdate();
             }
             
             private void SpawnNpc(Vector3 position, Quaternion rotation)
