@@ -44,6 +44,7 @@ namespace Oxide.Plugins
                         EventTier.Easy, new TierSetting
                         {
                             EventDuration = 1800f,
+                            NpcAggression = 100f,
                             NpcRadius = 15f,
                             NpcCount = 4,
                             NpcHealth = 100,
@@ -54,6 +55,7 @@ namespace Oxide.Plugins
                         EventTier.Medium, new TierSetting
                         {
                             EventDuration = 1800f,
+                            NpcAggression = 120f,
                             NpcRadius = 25f,
                             NpcCount = 6,
                             NpcHealth = 150,
@@ -64,6 +66,7 @@ namespace Oxide.Plugins
                         EventTier.Hard, new TierSetting
                         {
                             EventDuration = 1800f,
+                            NpcAggression = 150f,
                             NpcRadius = 50f,
                             NpcCount = 8,
                             NpcHealth = 200,
@@ -84,7 +87,7 @@ namespace Oxide.Plugins
         {
             [JsonProperty(PropertyName = "EventDuration (duration the event should last for)")]
             public float EventDuration;
-            
+
             [JsonProperty(PropertyName = "UseKits (use custom kits plugin)")]
             public bool UseKits;
             
@@ -99,6 +102,9 @@ namespace Oxide.Plugins
             
             [JsonProperty(PropertyName = "NpcRadius (max distance guards will roam)")]
             public float NpcRadius;
+            
+            [JsonProperty(PropertyName = "NpcAgression (max aggression distance guards will target)")]
+            public float NpcAggression;
 
             [JsonProperty(PropertyName = "MarkerColor (marker color for tier)")]
             public string MarkerColor;
@@ -321,8 +327,12 @@ namespace Oxide.Plugins
                 npc.enableSaving = false;
                 npc.SetMaxHealth(_eventSettings.NpcHealth);
                 npc.Spawn();
-                npc._aiDomain.MovementRadius = _eventSettings.NpcRadius;
-                npc._aiDomain.Movement = HTNDomain.MovementRule.RestrainedMove;
+                npc.AiDomain.Movement = HTNDomain.MovementRule.RestrainedMove;
+                npc.AiDomain.MovementRadius = _eventSettings.NpcRadius;
+                npc.AiDefinition.Engagement.DeaggroRange = _eventSettings.NpcAggression + 2f;
+                npc.AiDefinition.Engagement.AggroRange = _eventSettings.NpcAggression + 1f;
+                npc.AiDefinition.Engagement.Defensiveness = 1f;
+                npc.AiDefinition.Engagement.Hostility = 1f;
 
                 NpcPlayers.Add(npc);
 
