@@ -132,9 +132,9 @@ namespace Oxide.Plugins
             {
                 { "InvalidSyntax", "gc start|stop" },
                 { "Permission", "No permission" },
-                { "EventStarted", "<color=#DC143C>Guarded Crate</color>: Event started at ({0}), High value loot protected by armed guards." },
-                { "EventEnded", "<color=#DC143C>Guarded Crate</color>: Event ended at {0}, <color=#EDDf45>{1}</color>, completed the event." },
-                { "EventClear", "<color=#DC143C>Guarded Crate</color>: Event ended at {0}." }
+                { "EventStarted", "<color=#DC143C>Guarded Crate</color>: High value loot at ({0}), fight the guards before they leave." },
+                { "EventEnded", "<color=#DC143C>Guarded Crate</color>: Event ended at {0}, <color=#EDDf45>{1}</color>, cleared the event." },
+                { "EventClear", "<color=#DC143C>Guarded Crate</color>: Event ended at {0}, You was not fast enough better luck next time." }
             }, this);
         }
 
