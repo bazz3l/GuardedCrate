@@ -9,12 +9,13 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.2.4")]
+    [Info("Guarded Crate", "Bazz3l", "1.2.5")]
     [Description("Spawns hackable crates at a random location guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
         /*
          * TODO Remove ability to build in event areas to prevent people walling/building off crates
+         * Custom loot tables for crates
          */
         
         #region Fields
@@ -131,8 +132,9 @@ namespace Oxide.Plugins
             {
                 { "InvalidSyntax", "gc start|stop" },
                 { "Permission", "No permission" },
-                { "EventStarted", "<color=#DC143C>Guarded Crate</color>: Event started at {0}, High value loot protected by armed guards." },
-                { "EventEnded", "<color=#DC143C>Guarded Crate</color>: Event completed at {0}." },
+                { "EventStarted", "<color=#DC143C>Guarded Crate</color>: Event started at ({0}), High value loot protected by armed guards." },
+                { "EventEnded", "<color=#DC143C>Guarded Crate</color>: Event ended at {0}, <color=#EDDf45>{1}</color>, completed the event." },
+                { "EventClear", "<color=#DC143C>Guarded Crate</color>: Event ended at {0}." }
             }, this);
         }
 
@@ -170,9 +172,9 @@ namespace Oxide.Plugins
             RefreshEvents();
         }
         
-        private void OnEntityDeath(HTNPlayer npc, HitInfo hitInfo) => OnAIDeath(npc);
+        private void OnEntityDeath(HTNPlayer npc, HitInfo hitInfo) => OnAIDeath(npc, hitInfo?.InitiatorPlayer);
 
-        private void OnEntityKill(HTNPlayer npc) => OnAIDeath(npc);
+        private void OnEntityKill(HTNPlayer npc) => OnAIDeath(npc, null);
 
         #endregion
         
@@ -241,11 +243,11 @@ namespace Oxide.Plugins
 
         private void DelEvent(CrateEvent crateEvent) => _crateEvents.Remove(crateEvent);
 
-        private void OnAIDeath(HTNPlayer npc)
+        private void OnAIDeath(HTNPlayer npc, BasePlayer player)
         {
             CrateEvent crateEvent = _crateEvents.FirstOrDefault(x => x.NpcPlayers.Contains(npc));
 
-            crateEvent?.OnNPCDeath(npc);
+            crateEvent?.OnNPCDeath(npc, player);
         }
 
         private class CrateEvent
@@ -280,17 +282,17 @@ namespace Oxide.Plugins
                 _plugin.Message("EventStarted", GetGrid(_position));
             }
 
-            public void StopEvent(bool eventCompleted = false)
+            public void StopEvent(bool completed = false)
             {
-                _eventCompleted = eventCompleted;
-                
+                _eventCompleted = completed;
+
                 _eventTimer?.Destroy();
                 
                 StopSpawnRoutine();
                 DespawnPlane();
                 DespawnCrate();
                 DespawnAI();
-                
+
                 _plugin.DelEvent(this);
             }
 
@@ -432,11 +434,8 @@ namespace Oxide.Plugins
 
                 foreach (BaseEntity npc in npcList)
                 {
-                    if (!IsValid(npc))
-                    {
-                        continue;
-                    }
-                    
+                    if (!IsValid(npc)) continue;
+
                     npc.Kill();
                 }
 
@@ -444,7 +443,7 @@ namespace Oxide.Plugins
                 npcList.Clear();
             }
 
-            public void OnNPCDeath(HTNPlayer npc)
+            public void OnNPCDeath(HTNPlayer npc, BasePlayer player)
             {
                 NpcPlayers.Remove(npc);
 
@@ -453,9 +452,12 @@ namespace Oxide.Plugins
                     return;
                 }
                 
-                StopEvent(true);
+                if (player != null)
+                    _plugin.Message("EventEnded", GetGrid(_position), player.displayName);
+                else
+                    _plugin.Message("EventClear", GetGrid(_position));
 
-                _plugin.Message("EventEnded", GetGrid(_position));
+                StopEvent(true);
             }
         }
 
