@@ -9,13 +9,13 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.2.5")]
+    [Info("Guarded Crate", "Bazz3l", "1.2.6")]
     [Description("Spawns hackable crates at a random location guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
         /*
          * TODO Remove ability to build in event areas to prevent people walling/building off crates
-         * Custom loot tables for crates
+         * Custom loot tables for crates/scientists
          */
         
         #region Fields
@@ -25,6 +25,7 @@ namespace Oxide.Plugins
         private const string ChutePrefab = "assets/prefabs/misc/parachute/parachute.prefab";
         private const string NpcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
         private const string PlanePrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
+        private const string UsePerm = "guardedcrate.use";
         
         private static readonly LayerMask CollisionLayer = LayerMask.GetMask("Water", "Tree",  "Debris", "Clutter",  "Default", "Resource", "Construction", "Terrain", "World", "Deployed");
         private readonly HashSet<CrateEvent> _crateEvents = new HashSet<CrateEvent>();
@@ -140,6 +141,8 @@ namespace Oxide.Plugins
 
         private void OnServerInitialized()
         {
+            permission.RegisterPermission(UsePerm, this);
+            
             if (!_config.EnableAutoEvent)
             {
                 return;
@@ -611,7 +614,7 @@ namespace Oxide.Plugins
         [ChatCommand("gc")]
         private void GCChatCommand(BasePlayer player, string command, string[] args)
         {
-            if (!player.IsAdmin)
+            if (!permission.UserHasPermission(player.UserIDString, UsePerm))
             {
                 player.ChatMessage(Lang("NoPermission"));
                 return;
