@@ -279,7 +279,7 @@ namespace Oxide.Plugins
                 StartSpawnRoutine();
                 StartDespawnTimer();
 
-                _plugin.Message("EventStarted", GetGrid(_position));
+                Message("EventStarted", GetGrid(_position));
             }
 
             public void StopEvent(bool completed = false)
@@ -453,9 +453,9 @@ namespace Oxide.Plugins
                 }
                 
                 if (player != null)
-                    _plugin.Message("EventEnded", GetGrid(_position), player.displayName);
+                    Message("EventEnded", GetGrid(_position), player.displayName);
                 else
-                    _plugin.Message("EventClear", GetGrid(_position));
+                    Message("EventClear", GetGrid(_position));
 
                 StopEvent(true);
             }
@@ -602,7 +602,7 @@ namespace Oxide.Plugins
             return true;
         }
 
-        private void Message(string key, params object[] args) => Server.Broadcast(Lang(key, null, args));
+        private static void Message(string key, params object[] args) => _plugin.Server.Broadcast(_plugin.Lang(key, null, args));
 
         #endregion
 
