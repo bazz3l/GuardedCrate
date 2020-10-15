@@ -9,7 +9,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.2.6")]
+    [Info("Guarded Crate", "Bazz3l", "1.2.7")]
     [Description("Spawns hackable crates at a random location guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -149,6 +149,7 @@ namespace Oxide.Plugins
             }
             
             timer.Every(_config.AutoEventDuration, () => StartEvent(null));
+            timer.Every(30f, RefreshEvents);
         }
 
         private void Init()
@@ -159,22 +160,6 @@ namespace Oxide.Plugins
 
         private void Unload() => StopEvents(null);
 
-        private void OnPlayerConnected(BasePlayer player)
-        {
-            if (player == null)
-            {
-                return;
-            }
-
-            if (player.IsReceivingSnapshot)
-            {
-                timer.In(3f, () => OnPlayerConnected(player));
-                return;
-            }
-
-            RefreshEvents();
-        }
-        
         private void OnEntityDeath(HTNPlayer npc, HitInfo hitInfo) => OnAIDeath(npc, hitInfo?.InitiatorPlayer);
 
         private void OnEntityKill(HTNPlayer npc) => OnAIDeath(npc, null);
@@ -360,13 +345,9 @@ namespace Oxide.Plugins
                     return;
                 }
 
-                Color color;
-
-                ColorUtility.TryParseHtmlString(_eventSettings.MarkerColor, out color);
-                
                 _marker.enableSaving = false;
-                _marker.alpha  = 0.6f;
-                _marker.color1 = color;
+                _marker.alpha  = 0.75f;
+                _marker.color1 = GetColor(_eventSettings.MarkerColor);
                 _marker.color2 = Color.white;
                 _marker.radius = 0.5f;
                 _marker.SetParent(_crate, true, true);
@@ -584,6 +565,15 @@ namespace Oxide.Plugins
             letter = (char)(letter + x);
 
             return $"{letter}{z}";
+        }
+
+        private static Color GetColor(string hex)
+        {
+            Color color = Color.black;
+
+            ColorUtility.TryParseHtmlString(hex, out color);
+            
+            return color;
         }
         
         private static void GiveKit(BasePlayer npc, string kit, bool giveKit)
