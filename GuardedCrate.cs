@@ -10,7 +10,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.2.7")]
+    [Info("Guarded Crate", "Bazz3l", "1.2.8")]
     [Description("Spawns hackable crates at a random location guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -329,17 +329,6 @@ namespace Oxide.Plugins
             
             private void SpawnCrate()
             {
-                _crate = GameManager.server.CreateEntity(CratePrefab, _position, Quaternion.identity) as HackableLockedCrate;
-                if (_crate == null)
-                {
-                    return;
-                }
-                
-                _crate.enableSaving = false;
-                _crate.SetWasDropped();
-                _crate.Spawn();
-                _crate.gameObject.GetOrAddComponent<DropComponent>();
-                
                 _marker = GameManager.server.CreateEntity(MarkerPrefab, _position) as MapMarkerGenericRadius;
                 if (_marker == null)
                 {
@@ -351,8 +340,20 @@ namespace Oxide.Plugins
                 _marker.color1 = GetColor(_eventSettings.MarkerColor);
                 _marker.color2 = Color.white;
                 _marker.radius = 0.5f;
-                _marker.SetParent(_crate, true, true);
                 _marker.Spawn();
+
+                _crate = GameManager.server.CreateEntity(CratePrefab, _position, Quaternion.identity) as HackableLockedCrate;
+                if (_crate == null)
+                {
+                    return;
+                }
+                
+                _crate.enableSaving = false;
+                _crate.SetWasDropped();
+                _crate.Spawn();
+                _crate.gameObject.GetOrAddComponent<DropComponent>();
+                
+                _marker.SetParent(_crate, true, true);
                 _marker.SendUpdate();
             }
             
