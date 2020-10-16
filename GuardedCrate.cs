@@ -1,6 +1,6 @@
-using System;
 using System.Collections.Generic;
 using System.Collections;
+using System;
 using Newtonsoft.Json;
 using System.Linq;
 using Oxide.Core;
@@ -46,22 +46,24 @@ namespace Oxide.Plugins
                     {
                         EventTier.Easy, new TierSetting
                         {
-                            EventDuration = 1800f,
+                            EventDuration = 800f,
                             NpcAggression = 100f,
                             NpcRadius = 15f,
                             NpcCount = 6,
                             NpcHealth = 100,
+                            NpcName = "Easy Guard",
                             MarkerColor = "#32a844"
                         }
                     },
                     {
                         EventTier.Medium, new TierSetting
                         {
-                            EventDuration = 1800f,
+                            EventDuration = 1200f,
                             NpcAggression = 120f,
                             NpcRadius = 25f,
                             NpcCount = 8,
                             NpcHealth = 150,
+                            NpcName = "Medium Guard",
                             MarkerColor = "#e6aa20"
                         }
                     },
@@ -73,6 +75,7 @@ namespace Oxide.Plugins
                             NpcRadius = 50f,
                             NpcCount = 10,
                             NpcHealth = 200,
+                            NpcName = "Hard Guard",
                             MarkerColor = "#e81728"
                         }
                     }
@@ -102,6 +105,9 @@ namespace Oxide.Plugins
             
             [JsonProperty(PropertyName = "KitName (custom kit name)")]
             public string KitName;
+            
+            [JsonProperty(PropertyName = "NpcName (custom name)")]
+            public string NpcName;
             
             [JsonProperty(PropertyName = "NpcCount (number of guards to spawn)")]
             public int NpcCount;
@@ -374,6 +380,9 @@ namespace Oxide.Plugins
                 npc.AiDefinition.Engagement.AggroRange = _eventSettings.NpcAggression + 1f;
                 npc.AiDefinition.Engagement.Defensiveness = 1f;
                 npc.AiDefinition.Engagement.Hostility = 1f;
+                npc.displayName = _eventSettings.NpcName;
+                npc.LootPanelName = npc.displayName;
+                npc.SendNetworkUpdateImmediate();
 
                 NpcPlayers.Add(npc);
 
