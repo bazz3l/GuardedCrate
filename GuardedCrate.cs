@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Collections;
 using Newtonsoft.Json;
@@ -133,9 +134,9 @@ namespace Oxide.Plugins
             {
                 { "InvalidSyntax", "gc start|stop" },
                 { "Permission", "No permission" },
-                { "EventStarted", "<color=#DC143C>Guarded Crate</color>: High value loot at {0}, fight the guards before they leave." },
-                { "EventEnded", "<color=#DC143C>Guarded Crate</color>: Event ended at {0}, <color=#EDDf45>{1}</color>, cleared the event." },
-                { "EventClear", "<color=#DC143C>Guarded Crate</color>: Event ended at {0}, You was not fast enough better luck next time." }
+                { "EventStarted", "<color=#DC143C>Guarded Crate</color>: High value loot at <color=#EDDf45>{0}</color>, eliminate the guards before they leave in <color=#EDDf45>{1}</color>." },
+                { "EventEnded", "<color=#DC143C>Guarded Crate</color>: Event ended at <color=#EDDf45>{0}</color>, <color=#EDDf45>{1}</color>, cleared the event." },
+                { "EventClear", "<color=#DC143C>Guarded Crate</color>: Event ended at <color=#EDDf45>{0}</color>, You was not fast enough better luck next time." }
             }, this);
         }
 
@@ -267,7 +268,7 @@ namespace Oxide.Plugins
                 StartSpawnRoutine();
                 StartDespawnTimer();
 
-                Message("EventStarted", GetGrid(_position));
+                Message("EventStarted", GetGrid(_position), GetTime((int)_eventSettings.EventDuration));
             }
 
             public void StopEvent(bool completed = false)
@@ -574,6 +575,13 @@ namespace Oxide.Plugins
             ColorUtility.TryParseHtmlString(hex, out color);
             
             return color;
+        }
+
+        private static string GetTime(int secs)
+        {
+            TimeSpan t = TimeSpan.FromSeconds(secs);
+            
+            return string.Format("{0:D2}h:{1:D2}m:{2:D2}s", t.Hours, t.Minutes, t.Seconds);
         }
         
         private static void GiveKit(BasePlayer npc, string kit, bool giveKit)
