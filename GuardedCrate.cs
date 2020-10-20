@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Collections;
 using System;
 using Newtonsoft.Json;
@@ -10,7 +10,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.2.8")]
+    [Info("Guarded Crate", "Bazz3l", "1.2.9")]
     [Description("Spawns hackable crates at a random location guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -47,7 +47,7 @@ namespace Oxide.Plugins
                         EventTier.Easy, new TierSetting
                         {
                             EventDuration = 800f,
-                            NpcAggression = 100f,
+                            NpcAggression = 120f,
                             NpcRadius = 15f,
                             NpcCount = 6,
                             NpcHealth = 100,
@@ -90,7 +90,7 @@ namespace Oxide.Plugins
             
             [JsonProperty(PropertyName = "AutoEventDuration (time until new event spawns)")]
             public float AutoEventDuration = 1800f;
-            
+
             [JsonProperty(PropertyName = "EventTiers (specify different tiers)")]
             public Dictionary<EventTier, TierSetting> EventTiers = new Dictionary<EventTier, TierSetting>();
         }
@@ -99,6 +99,12 @@ namespace Oxide.Plugins
         {
             [JsonProperty(PropertyName = "EventDuration (duration the event should last for)")]
             public float EventDuration;
+            
+            [JsonProperty(PropertyName = "AutoHack (enables auto hacking of crates when finished)")]
+            public bool AutoHack = true;
+            
+            [JsonProperty(PropertyName = "AutoHackSeconds (countdown time for crate)")]
+            public float AutoHackSeconds = 60f;
 
             [JsonProperty(PropertyName = "UseKits (use custom kits plugin)")]
             public bool UseKits;
@@ -282,7 +288,7 @@ namespace Oxide.Plugins
                 _eventCompleted = completed;
 
                 _eventTimer?.Destroy();
-                
+
                 StopSpawnRoutine();
                 DespawnPlane();
                 DespawnCrate();
@@ -355,11 +361,13 @@ namespace Oxide.Plugins
                 }
                 
                 _crate.enableSaving = false;
+                _crate.shouldDecay = false;
                 _crate.SetWasDropped();
                 _crate.Spawn();
                 _crate.gameObject.GetOrAddComponent<DropComponent>();
                 
-                _marker.SetParent(_crate, true, true);
+                _marker.SetParent(_crate);
+                _marker.transform.localPosition = Vector3.zero;
                 _marker.SendUpdate();
             }
             
@@ -405,12 +413,24 @@ namespace Oxide.Plugins
 
             private void DespawnCrate()
             {
-                if (!IsValid(_crate) || _eventCompleted)
+                if (!IsValid(_crate))
                 {
                     return;
                 }
+
+                if (!_eventCompleted)
+                {
+                    _crate.Kill();
+                    return;
+                }
                 
-                _crate.Kill();
+                if (!_eventSettings.AutoHack)
+                {
+                    return;
+                }
+                    
+                _crate.hackSeconds = HackableLockedCrate.requiredHackSeconds - _eventSettings.AutoHackSeconds;
+                _crate.StartHacking();
             }
             
             private void DespawnPlane()
@@ -446,13 +466,19 @@ namespace Oxide.Plugins
                 {
                     return;
                 }
-                
-                if (player != null)
-                    Message("EventEnded", GetGrid(_position), player.displayName);
-                else
-                    Message("EventClear", GetGrid(_position));
 
-                StopEvent(true);
+                if (player != null)
+                {
+                    Message("EventEnded", GetGrid(_position), player.displayName);
+                    
+                    StopEvent(true);
+                }
+                else
+                {
+                    Message("EventClear", GetGrid(_position));
+                    
+                    StopEvent();
+                }
             }
         }
 
@@ -523,16 +549,17 @@ namespace Oxide.Plugins
             
             private void SpawnChute()
             {
-                Chute = GameManager.server.CreateEntity(ChutePrefab);
+                Chute = GameManager.server.CreateEntity(ChutePrefab, Crate.transform.position, Quaternion.identity);
                 if (Chute == null)
                 {
                     return;
                 }
                 
                 Chute.enableSaving = false;
-                Chute.transform.localPosition = Vector3.zero;
-                Chute.SetParent(Crate);
                 Chute.Spawn();
+                Chute.SetParent(Crate);
+                Chute.transform.localPosition = Vector3.zero;
+                Chute.SendNetworkUpdate();
             }
 
             private void RemoveChute()
