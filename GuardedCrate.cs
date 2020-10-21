@@ -52,7 +52,8 @@ namespace Oxide.Plugins
                             NpcCount = 6,
                             NpcHealth = 100,
                             NpcName = "Easy Guard",
-                            MarkerColor = "#32a844"
+                            MarkerColor = "#32a844",
+                            MarkerBorderColor = "#ffffff"
                         }
                     },
                     {
@@ -64,7 +65,8 @@ namespace Oxide.Plugins
                             NpcCount = 8,
                             NpcHealth = 150,
                             NpcName = "Medium Guard",
-                            MarkerColor = "#e6aa20"
+                            MarkerColor = "#e6aa20",
+                            MarkerBorderColor = "#ffffff"
                         }
                     },
                     {
@@ -76,7 +78,8 @@ namespace Oxide.Plugins
                             NpcCount = 10,
                             NpcHealth = 200,
                             NpcName = "Hard Guard",
-                            MarkerColor = "#e81728"
+                            MarkerColor = "#e81728",
+                            MarkerBorderColor = "#ffffff"
                         }
                     }
                 }
@@ -99,7 +102,7 @@ namespace Oxide.Plugins
         {
             [JsonProperty(PropertyName = "EventDuration (duration the event will be active for)")]
             public float EventDuration;
-            
+
             [JsonProperty(PropertyName = "AutoHack (enables auto hacking of crates when an event is finished)")]
             public bool AutoHack = true;
             
@@ -127,8 +130,11 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "NpcAggression (max aggression distance guards will target)")]
             public float NpcAggression;
 
-            [JsonProperty(PropertyName = "MarkerColor (marker color for tier)")]
+            [JsonProperty(PropertyName = "MarkerColor (marker color)")]
             public string MarkerColor;
+            
+            [JsonProperty(PropertyName = "MarkerBorderColor (marker border color)")]
+            public string MarkerBorderColor;
             
             [JsonProperty(PropertyName = "CrateItems (items to spawn in crate)")]
             public Dictionary<string, int> CrateItems = new Dictionary<string, int>();
@@ -349,7 +355,7 @@ namespace Oxide.Plugins
                 _marker.enableSaving = false;
                 _marker.alpha  = 0.75f;
                 _marker.color1 = GetColor(_eventSettings.MarkerColor);
-                _marker.color2 = Color.white;
+                _marker.color2 = GetColor(_eventSettings.MarkerBorderColor);
                 _marker.radius = 0.5f;
                 _marker.Spawn();
 
