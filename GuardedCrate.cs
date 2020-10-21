@@ -408,7 +408,7 @@ namespace Oxide.Plugins
                 {
                     Vector3 position = PositionAround(_position, 5f, (360 / _eventSettings.NpcCount * i));
                     
-                    SpawnNpc(position, Quaternion.LookRotation(position));
+                    SpawnNpc(position, Quaternion.LookRotation(position - _position));
                     
                     yield return new WaitForSeconds(0.75f);
                 }
