@@ -387,7 +387,7 @@ namespace Oxide.Plugins
                 npc.enableSaving = false;
                 npc.SetMaxHealth(_eventSettings.NpcHealth);
                 npc.Spawn();
-                npc.AiDomain.Movement = HTNDomain.MovementRule.RestrainedMove;
+                npc.AiDomain.Movement = HTNDomain.MovementRule.FreeMove;
                 npc.AiDomain.MovementRadius = _eventSettings.NpcRadius;
                 npc.AiDefinition.Engagement.DeaggroRange = _eventSettings.NpcAggression + 2f;
                 npc.AiDefinition.Engagement.AggroRange = _eventSettings.NpcAggression + 1f;
