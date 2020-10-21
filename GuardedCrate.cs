@@ -156,12 +156,11 @@ namespace Oxide.Plugins
         {
             permission.RegisterPermission(UsePerm, this);
             
-            if (!_config.EnableAutoEvent)
+            if (_config.EnableAutoEvent)
             {
-                return;
+                timer.Every(_config.AutoEventDuration, () => StartEvent(null));
             }
             
-            timer.Every(_config.AutoEventDuration, () => StartEvent(null));
             timer.Every(30f, RefreshEvents);
         }
 
