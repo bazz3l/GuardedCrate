@@ -11,7 +11,7 @@ using VLB;
 namespace Oxide.Plugins
 {
     [Info("Guarded Crate", "Bazz3l", "1.2.9")]
-    [Description("Spawns hackable crates at a random location guarded by scientists.")]
+    [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
         /*
