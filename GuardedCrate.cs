@@ -97,13 +97,13 @@ namespace Oxide.Plugins
 
         private class TierSetting
         {
-            [JsonProperty(PropertyName = "EventDuration (duration the event should last for)")]
+            [JsonProperty(PropertyName = "EventDuration (duration the event will be active for)")]
             public float EventDuration;
             
-            [JsonProperty(PropertyName = "AutoHack (enables auto hacking of crates when finished)")]
+            [JsonProperty(PropertyName = "AutoHack (enables auto hacking of crates when an event is finished)")]
             public bool AutoHack = true;
             
-            [JsonProperty(PropertyName = "AutoHackSeconds (countdown time for crate)")]
+            [JsonProperty(PropertyName = "AutoHackSeconds (countdown for crate to unlock in seconds)")]
             public float AutoHackSeconds = 60f;
 
             [JsonProperty(PropertyName = "UseKits (use custom kits plugin)")]
