@@ -206,6 +206,8 @@ namespace Oxide.Plugins
             {
                 { "InvalidSyntax", "gc start|stop" },
                 { "Permission", "No permission" },
+                { "CreateEvent", "<color=#DC143C>Guarded Crate</color>: New event starting stand by." },
+                { "CleanEvents", "<color=#DC143C>Guarded Crate</color>: Cleaning up events." },
                 { "EventStarted", "<color=#DC143C>Guarded Crate</color>: High value loot at <color=#EDDf45>{0}</color>, eliminate the guards before they leave in <color=#EDDf45>{1}</color>." },
                 { "EventEnded", "<color=#DC143C>Guarded Crate</color>: Event ended at <color=#EDDf45>{0}</color>, <color=#EDDf45>{1}</color>, cleared the event." },
                 { "EventClear", "<color=#DC143C>Guarded Crate</color>: Event ended at <color=#EDDf45>{0}</color>, You was not fast enough better luck next time." }
@@ -256,7 +258,7 @@ namespace Oxide.Plugins
                 return;
             }
             
-            player.ChatMessage("Event starting soon, stand by for cords.");
+            player.ChatMessage(Lang("CreateEvent", player.UserIDString));
         }
 
         private void StopEvents(BasePlayer player)
@@ -268,7 +270,7 @@ namespace Oxide.Plugins
                 return;
             }
             
-            player.ChatMessage("Cleaning up events.");
+            player.ChatMessage(Lang("CleanEvents", player.UserIDString));
         }
 
         private void RefreshEvents()
