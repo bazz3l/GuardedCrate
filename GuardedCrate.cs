@@ -31,60 +31,14 @@ namespace Oxide.Plugins
         private static readonly LayerMask CollisionLayer = LayerMask.GetMask("Water", "Tree",  "Debris", "Clutter",  "Default", "Resource", "Construction", "Terrain", "World", "Deployed");
         private readonly HashSet<CrateEvent> _crateEvents = new HashSet<CrateEvent>();
         private PluginConfig _config;
+        private PluginData _stored;
         private static GuardedCrate _plugin;
 
         #endregion
         
         #region Config
         
-        private PluginConfig GetDefaultConfig()
-        {
-            return new PluginConfig
-            {
-                EventTiers = new Dictionary<EventTier, TierSetting>
-                {
-                    {
-                        EventTier.Easy, new TierSetting
-                        {
-                            EventDuration = 800f,
-                            NpcAggression = 120f,
-                            NpcRadius = 15f,
-                            NpcCount = 6,
-                            NpcHealth = 100,
-                            NpcName = "Easy Guard",
-                            MarkerColor = "#32a844",
-                            MarkerBorderColor = "#ffffff"
-                        }
-                    },
-                    {
-                        EventTier.Medium, new TierSetting
-                        {
-                            EventDuration = 1200f,
-                            NpcAggression = 120f,
-                            NpcRadius = 25f,
-                            NpcCount = 8,
-                            NpcHealth = 150,
-                            NpcName = "Medium Guard",
-                            MarkerColor = "#e6aa20",
-                            MarkerBorderColor = "#ffffff"
-                        }
-                    },
-                    {
-                        EventTier.Hard, new TierSetting
-                        {
-                            EventDuration = 1800f,
-                            NpcAggression = 150f,
-                            NpcRadius = 50f,
-                            NpcCount = 10,
-                            NpcHealth = 200,
-                            NpcName = "Hard Guard",
-                            MarkerColor = "#e81728",
-                            MarkerBorderColor = "#ffffff"
-                        }
-                    }
-                }
-            };
-        }
+        private PluginConfig GetDefaultConfig() => new PluginConfig();
 
         private class PluginConfig
         {
@@ -93,9 +47,6 @@ namespace Oxide.Plugins
             
             [JsonProperty(PropertyName = "AutoEventDuration (time until new event spawns)")]
             public float AutoEventDuration = 1800f;
-
-            [JsonProperty(PropertyName = "EventTiers (specify different tiers)")]
-            public Dictionary<EventTier, TierSetting> EventTiers = new Dictionary<EventTier, TierSetting>();
         }
 
         private class TierSetting
@@ -136,10 +87,120 @@ namespace Oxide.Plugins
             [JsonProperty(PropertyName = "MarkerBorderColor (marker border color)")]
             public string MarkerBorderColor;
             
-            [JsonProperty(PropertyName = "CrateItems (items to spawn in crate)")]
-            public Dictionary<string, int> CrateItems = new Dictionary<string, int>();
+            [JsonProperty(PropertyName = "UseLoot (use custom loot table)")]
+            public bool UseLoot;
+            
+            [JsonProperty(PropertyName = "MaxLootItems (max items to spawn in crate)")]
+            public int MaxLootItems = 6;
+            
+            [JsonProperty(PropertyName = "CustomLoot (items to spawn in crate)")]
+            public List<LootItem> CustomLoot = new List<LootItem>();
+        }
+
+        private class LootItem
+        {
+            public string Shortname;
+            public int MinAmount;
+            public int MaxAmount;
         }
         
+        #endregion
+
+        #region Storage
+
+        private class PluginData
+        {
+            [JsonProperty(PropertyName = "EventTiers (specify different tiers)")]
+            public Dictionary<EventTier, TierSetting> EventTiers = new Dictionary<EventTier, TierSetting>
+            {
+                {
+                    EventTier.Easy, new TierSetting
+                    {
+                        EventDuration = 800f,
+                        NpcAggression = 120f,
+                        NpcRadius = 15f,
+                        NpcCount = 6,
+                        NpcHealth = 100,
+                        NpcName = "Easy Guard",
+                        MarkerColor = "#32a844",
+                        MarkerBorderColor = "#ffffff"
+                    }
+                },
+                {
+                    EventTier.Medium, new TierSetting
+                    {
+                        EventDuration = 1200f,
+                        NpcAggression = 120f,
+                        NpcRadius = 25f,
+                        NpcCount = 8,
+                        NpcHealth = 150,
+                        NpcName = "Medium Guard",
+                        MarkerColor = "#e6aa20",
+                        MarkerBorderColor = "#ffffff"
+                    }
+                },
+                {
+                    EventTier.Hard, new TierSetting
+                    {
+                        EventDuration = 1800f,
+                        NpcAggression = 150f,
+                        NpcRadius = 50f,
+                        NpcCount = 10,
+                        NpcHealth = 200,
+                        NpcName = "Hard Guard",
+                        MarkerColor = "#e81728",
+                        MarkerBorderColor = "#ffffff",
+                        UseLoot = true,
+                        CustomLoot = new List<LootItem>
+                        {
+                            new LootItem
+                            {
+                                Shortname = "rifle.ak",
+                                MinAmount = 1,
+                                MaxAmount = 1
+                            },
+                            new LootItem
+                            {
+                                Shortname = "ammo.rocket.basic",
+                                MinAmount = 3,
+                                MaxAmount = 3
+                            },
+                            new LootItem
+                            {
+                                Shortname = "rifle.lr300",
+                                MinAmount = 1,
+                                MaxAmount = 1
+                            },
+                            new LootItem
+                            {
+                                Shortname = "explosive.timed",
+                                MinAmount = 3,
+                                MaxAmount = 4
+                            },
+                            new LootItem
+                            {
+                                Shortname = "autoturret",
+                                MinAmount = 1,
+                                MaxAmount = 2
+                            },
+                            new LootItem
+                            {
+                                Shortname = "stones",
+                                MinAmount = 3000,
+                                MaxAmount = 5000
+                            },
+                            new LootItem
+                            {
+                                Shortname = "sulfur.ore",
+                                MinAmount = 3000,
+                                MaxAmount = 5000
+                            }
+                        }
+                    }
+                }
+            };
+        }
+
         #endregion
 
         #region Oxide
@@ -174,6 +235,7 @@ namespace Oxide.Plugins
         {
             _plugin = this;
             _config = Config.ReadObject<PluginConfig>();
+            _stored = Interface.Oxide.DataFileSystem.ReadObject<PluginData>(Name);
         }
 
         private void Unload() => StopEvents(null);
@@ -195,8 +257,8 @@ namespace Oxide.Plugins
         
         private void StartEvent(BasePlayer player)
         {
-            KeyValuePair<EventTier, TierSetting> eventSettings = _config.EventTiers.ElementAtOrDefault(UnityEngine.Random.Range(0, _config.EventTiers.Count));
-
+            KeyValuePair<EventTier, TierSetting> eventSettings = _stored.EventTiers.ElementAtOrDefault(UnityEngine.Random.Range(0, _stored.EventTiers.Count));
+            
             CrateEvent crateEvent = new CrateEvent();
 
             crateEvent.PreEvent(eventSettings.Value);
@@ -282,6 +344,7 @@ namespace Oxide.Plugins
                 _position = position;
 
                 SpawnCrate();
+                RefillLoot();
                 StartSpawnRoutine();
                 StartDespawnTimer();
 
@@ -414,6 +477,49 @@ namespace Oxide.Plugins
                 }
 
                 yield return null;
+            }
+
+            private List<LootItem> CreateLoot()
+            {
+                int MAX_LOOP_LIMIT = 1000;
+
+                List<LootItem> lootItems = new List<LootItem>();
+                
+                while (lootItems.Count < _eventSettings.MaxLootItems && MAX_LOOP_LIMIT-- > 0)
+                {
+                    LootItem lootItem = _eventSettings.CustomLoot.GetRandom();
+
+                    if (lootItems.Contains(lootItem)) continue;
+                        
+                    lootItems.Add(lootItem);
+                }
+
+                return lootItems;
+            }
+
+            private void RefillLoot()
+            {
+                if (!_eventSettings.UseLoot || _eventSettings.CustomLoot.Count <= 0)
+                {
+                    return;
+                }
+                
+                _crate.inventory.Clear();
+                
+                ItemManager.DoRemoves();
+
+                _crate.inventory.capacity = _eventSettings.CustomLoot.Count;
+                
+                List<LootItem> lootItems = CreateLoot();
+                
+                foreach (LootItem lootItem in lootItems)
+                {
+                    ItemDefinition item = ItemManager.FindItemDefinition(lootItem.Shortname);
+                    
+                    if (item == null) continue;
+
+                    _crate.inventory.AddItem(item, UnityEngine.Random.Range(lootItem.MinAmount, lootItem.MaxAmount));
+                }
             }
 
             private void DespawnCrate()
@@ -598,16 +704,19 @@ namespace Oxide.Plugins
 
             return hit.point;
         }
-        
-        private static string GetGrid(Vector3 position)
+
+        private static  string GetGrid(Vector3 pos)
         {
             char letter = 'A';
-            float worldSize = ConVar.Server.worldsize;
-            float x = Mathf.Floor((position.x + worldSize / 2) / 146.3f) % 26;
-            float z = Mathf.Floor(worldSize / 146.3f) - Mathf.Floor((position.z + worldSize / 2) / 146.3f);
+            float x     = Mathf.Floor((pos.x + (ConVar.Server.worldsize / 2)) / 146.3f) % 26;
+            float count = Mathf.Floor(Mathf.Floor((pos.x + (ConVar.Server.worldsize / 2)) / 146.3f) / 26);
+            float z     = Mathf.Floor(ConVar.Server.worldsize / 146.3f) - Mathf.Floor((pos.z + (ConVar.Server.worldsize / 2)) / 146.3f);
+            
             letter = (char)(letter + x);
-
-            return $"{letter}{z}";
+            
+            string secondLetter = count <= 0 ? string.Empty : ((char)('A' + (count - 1))).ToString();
+            
+            return $"{secondLetter}{letter}{z}";
         }
 
         private static Color GetColor(string hex)
