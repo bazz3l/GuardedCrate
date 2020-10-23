@@ -10,13 +10,12 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.2.9")]
+    [Info("Guarded Crate", "Bazz3l", "1.3.0")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
         /*
-         * TODO Remove ability to build in event areas to prevent people walling/building off crates
-         * Custom loot tables for crates/scientists
+         * TODO Custom loot tables for scientists
          */
         
         #region Fields
@@ -238,6 +237,8 @@ namespace Oxide.Plugins
 
         private void OnEntityKill(HTNPlayer npc) => OnAIDeath(npc, null);
 
+        private object CanBuild(Planner planner, Construction prefab, Construction.Target target) => OnCanBuild(planner.GetOwnerPlayer());
+
         #endregion
         
         #region Core
@@ -303,6 +304,16 @@ namespace Oxide.Plugins
             CrateEvent crateEvent = _crateEvents.FirstOrDefault(x => x.NpcPlayers.Contains(npc));
 
             crateEvent?.OnNPCDeath(npc, player);
+        }
+        
+        private object OnCanBuild(BasePlayer player)
+        {
+            if (player != null && _crateEvents.FirstOrDefault(x => x.Distance(player.ServerPosition)) != null)
+            {
+                return false;
+            }
+
+            return null;
         }
 
         private class CrateEvent
@@ -555,6 +566,8 @@ namespace Oxide.Plugins
                 NpcPlayers.Clear();
                 npcList.Clear();
             }
+
+            public bool Distance(Vector3 position) => Vector3Ex.Distance2D(position, _position) <= 20f;
 
             public void OnNPCDeath(HTNPlayer npc, BasePlayer player)
             {
