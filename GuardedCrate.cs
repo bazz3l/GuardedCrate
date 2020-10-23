@@ -49,7 +49,98 @@ namespace Oxide.Plugins
             public float AutoEventDuration = 1800f;
         }
 
-        private class TierSetting
+        #endregion
+
+        #region Storage
+
+        private class PluginData
+        {
+            [JsonProperty(PropertyName = "Events (specify different event settings)")]
+            public readonly List<EventSetting> Events = new List<EventSetting>
+            {
+                new EventSetting
+                {
+                    EventDuration = 800f,
+                    NpcAggression = 120f,
+                    NpcRadius = 15f,
+                    NpcCount = 6,
+                    NpcHealth = 100,
+                    NpcName = "Easy Guard",
+                    MarkerColor = "#32a844",
+                    MarkerBorderColor = "#ffffff"
+                },
+                new EventSetting
+                {
+                    EventDuration = 1200f,
+                    NpcAggression = 120f,
+                    NpcRadius = 25f,
+                    NpcCount = 8,
+                    NpcHealth = 150,
+                    NpcName = "Medium Guard",
+                    MarkerColor = "#e6aa20",
+                    MarkerBorderColor = "#ffffff"
+                },
+                new EventSetting
+                {
+                    EventDuration = 1800f,
+                    NpcAggression = 150f,
+                    NpcRadius = 50f,
+                    NpcCount = 10,
+                    NpcHealth = 200,
+                    NpcName = "Hard Guard",
+                    MarkerColor = "#e81728",
+                    MarkerBorderColor = "#ffffff",
+                    UseLoot = true,
+                    CustomLoot = new List<LootItem>
+                    {
+                        new LootItem
+                        {
+                            Shortname = "rifle.ak",
+                            MinAmount = 1,
+                            MaxAmount = 1
+                        },
+                        new LootItem
+                        {
+                            Shortname = "ammo.rocket.basic",
+                            MinAmount = 3,
+                            MaxAmount = 3
+                        },
+                        new LootItem
+                        {
+                            Shortname = "rifle.lr300",
+                            MinAmount = 1,
+                            MaxAmount = 1
+                        },
+                        new LootItem
+                        {
+                            Shortname = "explosive.timed",
+                            MinAmount = 3,
+                            MaxAmount = 4
+                        },
+                        new LootItem
+                        {
+                            Shortname = "autoturret",
+                            MinAmount = 1,
+                            MaxAmount = 2
+                        },
+                        new LootItem
+                        {
+                            Shortname = "stones",
+                            MinAmount = 3000,
+                            MaxAmount = 5000
+                        },
+                        new LootItem
+                        {
+                            Shortname = "sulfur.ore",
+                            MinAmount = 3000,
+                            MaxAmount = 5000
+                        }
+                    }
+                }
+            };
+        }
+        
+        private class EventSetting
         {
             [JsonProperty(PropertyName = "EventDuration (duration the event will be active for)")]
             public float EventDuration;
@@ -103,103 +194,6 @@ namespace Oxide.Plugins
             public int MinAmount;
             public int MaxAmount;
         }
-        
-        #endregion
-
-        #region Storage
-
-        private class PluginData
-        {
-            [JsonProperty(PropertyName = "EventTiers (specify different tiers)")]
-            public Dictionary<EventTier, TierSetting> EventTiers = new Dictionary<EventTier, TierSetting>
-            {
-                {
-                    EventTier.Easy, new TierSetting
-                    {
-                        EventDuration = 800f,
-                        NpcAggression = 120f,
-                        NpcRadius = 15f,
-                        NpcCount = 6,
-                        NpcHealth = 100,
-                        NpcName = "Easy Guard",
-                        MarkerColor = "#32a844",
-                        MarkerBorderColor = "#ffffff"
-                    }
-                },
-                {
-                    EventTier.Medium, new TierSetting
-                    {
-                        EventDuration = 1200f,
-                        NpcAggression = 120f,
-                        NpcRadius = 25f,
-                        NpcCount = 8,
-                        NpcHealth = 150,
-                        NpcName = "Medium Guard",
-                        MarkerColor = "#e6aa20",
-                        MarkerBorderColor = "#ffffff"
-                    }
-                },
-                {
-                    EventTier.Hard, new TierSetting
-                    {
-                        EventDuration = 1800f,
-                        NpcAggression = 150f,
-                        NpcRadius = 50f,
-                        NpcCount = 10,
-                        NpcHealth = 200,
-                        NpcName = "Hard Guard",
-                        MarkerColor = "#e81728",
-                        MarkerBorderColor = "#ffffff",
-                        UseLoot = true,
-                        CustomLoot = new List<LootItem>
-                        {
-                            new LootItem
-                            {
-                                Shortname = "rifle.ak",
-                                MinAmount = 1,
-                                MaxAmount = 1
-                            },
-                            new LootItem
-                            {
-                                Shortname = "ammo.rocket.basic",
-                                MinAmount = 3,
-                                MaxAmount = 3
-                            },
-                            new LootItem
-                            {
-                                Shortname = "rifle.lr300",
-                                MinAmount = 1,
-                                MaxAmount = 1
-                            },
-                            new LootItem
-                            {
-                                Shortname = "explosive.timed",
-                                MinAmount = 3,
-                                MaxAmount = 4
-                            },
-                            new LootItem
-                            {
-                                Shortname = "autoturret",
-                                MinAmount = 1,
-                                MaxAmount = 2
-                            },
-                            new LootItem
-                            {
-                                Shortname = "stones",
-                                MinAmount = 3000,
-                                MaxAmount = 5000
-                            },
-                            new LootItem
-                            {
-                                Shortname = "sulfur.ore",
-                                MinAmount = 3000,
-                                MaxAmount = 5000
-                            }
-                        }
-                    }
-                }
-            };
-        }
 
         #endregion
 
@@ -248,20 +242,13 @@ namespace Oxide.Plugins
         
         #region Core
 
-        private enum EventTier
-        {
-            Easy,
-            Medium,
-            Hard
-        };
-        
         private void StartEvent(BasePlayer player)
         {
-            KeyValuePair<EventTier, TierSetting> eventSettings = _stored.EventTiers.ElementAtOrDefault(UnityEngine.Random.Range(0, _stored.EventTiers.Count));
+            EventSetting eventSettings = _stored.Events.GetRandom();
             
             CrateEvent crateEvent = new CrateEvent();
 
-            crateEvent.PreEvent(eventSettings.Value);
+            crateEvent.PreEvent(eventSettings);
 
             if (player == null)
             {
@@ -328,9 +315,9 @@ namespace Oxide.Plugins
             private Coroutine _coroutine;
             private Timer _eventTimer;
             private bool _eventCompleted;
-            private TierSetting _eventSettings;
+            private EventSetting _eventSettings;
 
-            public void PreEvent(TierSetting eventSettings)
+            public void PreEvent(EventSetting eventSettings)
             {
                 _eventSettings = eventSettings;
                 
