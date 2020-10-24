@@ -10,14 +10,10 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.3.3")]
+    [Info("Guarded Crate", "Bazz3l", "1.3.4")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
-        /*
-         * TODO Custom loot tables for scientists
-         */
-        
         #region Fields
 
         private const string CratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
@@ -36,9 +32,6 @@ namespace Oxide.Plugins
         #endregion
         
         #region Config
-        
-        private PluginConfig GetDefaultConfig() => new PluginConfig();
-
         private class PluginConfig
         {
             [JsonProperty(PropertyName = "AutoEvent (enables auto event spawns)")]
@@ -159,8 +152,6 @@ namespace Oxide.Plugins
         #endregion
 
         #region Oxide
-        
-        protected override void LoadDefaultConfig() => Config.WriteObject(GetDefaultConfig(), true);
 
         protected override void LoadDefaultMessages()
         {
@@ -175,6 +166,35 @@ namespace Oxide.Plugins
                 { "EventClear", "<color=#DC143C>Guarded Crate</color>: Event ended at <color=#EDDf45>{0}</color>, You was not fast enough better luck next time." }
             }, this);
         }
+        
+        protected override void LoadDefaultConfig() => _config = new PluginConfig();
+
+        protected override void LoadConfig()
+        {
+            base.LoadConfig();
+            
+            try
+            {
+                _config = Config.ReadObject<PluginConfig>();
+                
+                if (_config == null)
+                {
+                    throw new Exception();
+                }
+            }
+            catch
+            {
+                Config.WriteObject(_config, false, $"{Interface.Oxide.ConfigDirectory}/{Name}.jsonError");
+                
+                PrintError("The configuration file contains an error and has been replaced with a default config.\n" + "The error configuration file was saved in the .jsonError extension");
+                
+                LoadDefaultConfig();
+            }
+
+            SaveConfig();
+        }
+        
+        protected override void SaveConfig() => Config.WriteObject(_config);
 
         private void OnServerInitialized()
         {
@@ -191,11 +211,15 @@ namespace Oxide.Plugins
         private void Init()
         {
             _plugin = this;
-            _config = Config.ReadObject<PluginConfig>();
             _stored = Interface.Oxide.DataFileSystem.ReadObject<PluginData>(Name);
         }
 
-        private void Unload() => StopEvents(null);
+        private void Unload()
+        {
+            StopEvents(null);
+
+            _plugin = null;
+        }
 
         private void OnEntityDeath(HTNPlayer npc, HitInfo hitInfo) => OnAIDeath(npc, hitInfo?.InitiatorPlayer);
 
@@ -226,7 +250,7 @@ namespace Oxide.Plugins
         private void StopEvents(BasePlayer player)
         {
             CommunityEntity.ServerInstance.StartCoroutine(DespawnRoutine());
-            
+
             if (player == null)
             {
                 return;
@@ -298,7 +322,7 @@ namespace Oxide.Plugins
                 
                 SpawnPlane();
                 
-                _plugin.AddEvent(this);
+                _plugin?.AddEvent(this);
             }
 
             public void StartEvent(Vector3 position)
@@ -324,7 +348,7 @@ namespace Oxide.Plugins
                 DespawnCrate();
                 DespawnAI();
 
-                _plugin.DelEvent(this);
+                _plugin?.DelEvent(this);
             }
 
             public void RefreshEvent()
@@ -347,9 +371,9 @@ namespace Oxide.Plugins
                 if (_coroutine != null)
                 {
                     CommunityEntity.ServerInstance.StopCoroutine(_coroutine);
+                    
+                    _coroutine = null;
                 }
-                
-                _coroutine = null;
             }
 
             private void StartDespawnTimer()
@@ -726,7 +750,7 @@ namespace Oxide.Plugins
             return true;
         }
 
-        private static void Message(string key, params object[] args) => _plugin.Server.Broadcast(_plugin.Lang(key, null, args));
+        private static void Message(string key, params object[] args) => _plugin?.PrintToChat(_plugin.Lang(key, null, args));
 
         #endregion
 
