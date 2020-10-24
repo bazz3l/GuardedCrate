@@ -10,7 +10,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.3.1")]
+    [Info("Guarded Crate", "Bazz3l", "1.3.2")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -194,6 +194,8 @@ namespace Oxide.Plugins
             public int MaxAmount;
         }
 
+        private void SaveData() => Interface.Oxide.DataFileSystem.WriteObject(Name, _stored);
+
         #endregion
 
         #region Oxide
@@ -232,6 +234,8 @@ namespace Oxide.Plugins
             _config = Config.ReadObject<PluginConfig>();
             _stored = Interface.Oxide.DataFileSystem.ReadObject<PluginData>(Name);
         }
+        
+        private void Loaded() => SaveData();
 
         private void Unload() => StopEvents(null);
 
@@ -477,7 +481,7 @@ namespace Oxide.Plugins
                 for (int i = 0; i < _eventSettings.NpcCount; i++)
                 {
                     Vector3 position = PositionAround(_position, 5f, (360 / _eventSettings.NpcCount * i));
-                    
+
                     SpawnNpc(position, Quaternion.LookRotation(position - _position));
                     
                     yield return new WaitForSeconds(0.75f);
