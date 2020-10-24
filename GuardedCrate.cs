@@ -66,7 +66,8 @@ namespace Oxide.Plugins
                     NpcHealth = 100,
                     NpcName = "Easy Guard",
                     MarkerColor = "#32a844",
-                    MarkerBorderColor = "#ffffff"
+                    MarkerBorderColor = "#ffffff",
+                    MarkerOpacity = 0.45f
                 },
                 new EventSetting
                 {
@@ -77,7 +78,8 @@ namespace Oxide.Plugins
                     NpcHealth = 150,
                     NpcName = "Medium Guard",
                     MarkerColor = "#e6aa20",
-                    MarkerBorderColor = "#ffffff"
+                    MarkerBorderColor = "#ffffff",
+                    MarkerOpacity = 0.45f
                 },
                 new EventSetting
                 {
@@ -88,7 +90,8 @@ namespace Oxide.Plugins
                     NpcHealth = 200,
                     NpcName = "Hard Guard",
                     MarkerColor = "#e81728",
-                    MarkerBorderColor = "#ffffff"
+                    MarkerBorderColor = "#ffffff",
+                    MarkerOpacity = 0.45f
                 }
             };
         }
@@ -382,9 +385,9 @@ namespace Oxide.Plugins
                 }
 
                 _marker.enableSaving = false;
-                _marker.alpha  = _eventSettings.MarkerOpacity;
                 _marker.color1 = GetColor(_eventSettings.MarkerColor);
                 _marker.color2 = GetColor(_eventSettings.MarkerBorderColor);
+                _marker.alpha  = (float) _eventSettings.MarkerOpacity;
                 _marker.radius = 0.5f;
                 _marker.Spawn();
 
