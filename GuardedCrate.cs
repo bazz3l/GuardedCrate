@@ -191,8 +191,6 @@ namespace Oxide.Plugins
             _config = Config.ReadObject<PluginConfig>();
             _stored = Interface.Oxide.DataFileSystem.ReadObject<PluginData>(Name);
         }
-        
-        private void Loaded() => SaveData();
 
         private void Unload() => StopEvents(null);
 
