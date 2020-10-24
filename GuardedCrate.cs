@@ -88,53 +88,7 @@ namespace Oxide.Plugins
                     NpcHealth = 200,
                     NpcName = "Hard Guard",
                     MarkerColor = "#e81728",
-                    MarkerBorderColor = "#ffffff",
-                    UseLoot = true,
-                    CustomLoot = new List<LootItem>
-                    {
-                        new LootItem
-                        {
-                            Shortname = "rifle.ak",
-                            MinAmount = 1,
-                            MaxAmount = 1
-                        },
-                        new LootItem
-                        {
-                            Shortname = "ammo.rocket.basic",
-                            MinAmount = 3,
-                            MaxAmount = 3
-                        },
-                        new LootItem
-                        {
-                            Shortname = "rifle.lr300",
-                            MinAmount = 1,
-                            MaxAmount = 1
-                        },
-                        new LootItem
-                        {
-                            Shortname = "explosive.timed",
-                            MinAmount = 3,
-                            MaxAmount = 4
-                        },
-                        new LootItem
-                        {
-                            Shortname = "autoturret",
-                            MinAmount = 1,
-                            MaxAmount = 2
-                        },
-                        new LootItem
-                        {
-                            Shortname = "stones",
-                            MinAmount = 3000,
-                            MaxAmount = 5000
-                        },
-                        new LootItem
-                        {
-                            Shortname = "sulfur.ore",
-                            MinAmount = 3000,
-                            MaxAmount = 5000
-                        }
-                    }
+                    MarkerBorderColor = "#ffffff"
                 }
             };
         }
@@ -176,6 +130,9 @@ namespace Oxide.Plugins
             
             [JsonProperty(PropertyName = "MarkerBorderColor (marker border color)")]
             public string MarkerBorderColor;
+            
+            [JsonProperty(PropertyName = "MarkerOpacity (marker opacity)")]
+            public float MarkerOpacity = 1f;
             
             [JsonProperty(PropertyName = "UseLoot (use custom loot table)")]
             public bool UseLoot;
@@ -427,7 +384,7 @@ namespace Oxide.Plugins
                 }
 
                 _marker.enableSaving = false;
-                _marker.alpha  = 0.75f;
+                _marker.alpha  = _eventSettings.MarkerOpacity;
                 _marker.color1 = GetColor(_eventSettings.MarkerColor);
                 _marker.color2 = GetColor(_eventSettings.MarkerBorderColor);
                 _marker.radius = 0.5f;
