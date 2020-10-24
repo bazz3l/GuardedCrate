@@ -10,7 +10,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.3.0")]
+    [Info("Guarded Crate", "Bazz3l", "1.3.1")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -394,6 +394,13 @@ namespace Oxide.Plugins
             {
                 _eventTimer = _plugin.timer.Once(_eventSettings.EventDuration, () => StopEvent());
             }
+            
+            private void ResetDespawnTimer()
+            {
+                _eventTimer?.Destroy();
+
+                StartDespawnTimer();
+            }
 
             private void SpawnPlane()
             {
@@ -574,9 +581,10 @@ namespace Oxide.Plugins
             public void OnNPCDeath(HTNPlayer npc, BasePlayer player)
             {
                 NpcPlayers.Remove(npc);
-
+                
                 if (NpcPlayers.Count > 0)
                 {
+                    ResetDespawnTimer();
                     return;
                 }
 
