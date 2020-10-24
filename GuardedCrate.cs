@@ -32,6 +32,7 @@ namespace Oxide.Plugins
         #endregion
         
         #region Config
+        
         private class PluginConfig
         {
             [JsonProperty(PropertyName = "AutoEvent (enables auto event spawns)")]
@@ -276,6 +277,8 @@ namespace Oxide.Plugins
                 CrateEvent crateEvent = _crateEvents.ElementAt(i);
                 
                 crateEvent.StopEvent();
+                
+                DelEvent(crateEvent);
 
                 yield return new WaitForSeconds(0.75f);
             }
