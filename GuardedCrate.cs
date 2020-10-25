@@ -10,7 +10,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.3.4")]
+    [Info("Guarded Crate", "Bazz3l", "1.3.5")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -48,46 +48,7 @@ namespace Oxide.Plugins
 
         private class PluginData
         {
-            [JsonProperty(PropertyName = "Events (specify different event settings)")]
-            public readonly List<EventSetting> Events = new List<EventSetting>
-            {
-                new EventSetting
-                {
-                    EventDuration = 800f,
-                    NpcAggression = 120f,
-                    NpcRadius = 15f,
-                    NpcCount = 6,
-                    NpcHealth = 100,
-                    NpcName = "Easy Guard",
-                    MarkerColor = "#32a844",
-                    MarkerBorderColor = "#ffffff",
-                    MarkerOpacity = 0.45f
-                },
-                new EventSetting
-                {
-                    EventDuration = 1200f,
-                    NpcAggression = 120f,
-                    NpcRadius = 25f,
-                    NpcCount = 8,
-                    NpcHealth = 150,
-                    NpcName = "Medium Guard",
-                    MarkerColor = "#e6aa20",
-                    MarkerBorderColor = "#ffffff",
-                    MarkerOpacity = 0.45f
-                },
-                new EventSetting
-                {
-                    EventDuration = 1800f,
-                    NpcAggression = 150f,
-                    NpcRadius = 50f,
-                    NpcCount = 10,
-                    NpcHealth = 200,
-                    NpcName = "Hard Guard",
-                    MarkerColor = "#e81728",
-                    MarkerBorderColor = "#ffffff",
-                    MarkerOpacity = 0.45f
-                }
-            };
+            public readonly List<EventSetting> Events = new List<EventSetting>();
         }
         
         private class EventSetting
@@ -200,8 +161,10 @@ namespace Oxide.Plugins
         private void OnServerInitialized()
         {
             permission.RegisterPermission(UsePerm, this);
+
+            InitializeDefault();
             
-            if (_config.EnableAutoEvent)
+            if (!_config.EnableAutoEvent)
             {
                 timer.Every(_config.AutoEventDuration, () => StartEvent(null));
             }
@@ -231,6 +194,54 @@ namespace Oxide.Plugins
         #endregion
         
         #region Core
+
+        private void InitializeDefault()
+        {
+            if (_stored.Events.Count != 0)
+            {
+                return;
+            }
+
+            _stored.Events.Add(new EventSetting
+            {
+                EventDuration = 800f,
+                NpcAggression = 120f,
+                NpcRadius = 15f,
+                NpcCount = 6,
+                NpcHealth = 100,
+                NpcName = "Easy Guard",
+                MarkerColor = "#32a844",
+                MarkerBorderColor = "#ffffff",
+                MarkerOpacity = 0.9f
+            });
+            
+            _stored.Events.Add(new EventSetting
+            {
+                EventDuration = 800f,
+                NpcAggression = 120f,
+                NpcRadius = 15f,
+                NpcCount = 6,
+                NpcHealth = 100,
+                NpcName = "Easy Guard",
+                MarkerColor = "#32a844",
+                MarkerBorderColor = "#ffffff",
+                MarkerOpacity = 0.9f
+            });
+            
+            _stored.Events.Add(new EventSetting {
+                EventDuration = 1800f,
+                NpcAggression = 150f,
+                NpcRadius = 50f,
+                NpcCount = 10,
+                NpcHealth = 200, 
+                NpcName = "Hard Guard",
+                MarkerColor = "#e81728",
+                MarkerBorderColor = "#ffffff",
+                MarkerOpacity = 0.9f
+            });
+            
+            SaveData();
+        }
 
         private void StartEvent(BasePlayer player)
         {
@@ -410,11 +421,13 @@ namespace Oxide.Plugins
                 {
                     return;
                 }
+                
+                _plugin.Puts("Marker opacity: {0}, color: {1}", _eventSettings.MarkerOpacity, _eventSettings.MarkerColor);
 
                 _marker.enableSaving = false;
                 _marker.color1 = GetColor(_eventSettings.MarkerColor);
                 _marker.color2 = GetColor(_eventSettings.MarkerBorderColor);
-                _marker.alpha  = (float) _eventSettings.MarkerOpacity;
+                _marker.alpha  = _eventSettings.MarkerOpacity;
                 _marker.radius = 0.5f;
                 _marker.Spawn();
 
