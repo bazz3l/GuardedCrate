@@ -421,8 +421,6 @@ namespace Oxide.Plugins
                 {
                     return;
                 }
-                
-                _plugin.Puts("Marker opacity: {0}, color: {1}", _eventSettings.MarkerOpacity, _eventSettings.MarkerColor);
 
                 _marker.enableSaving = false;
                 _marker.color1 = GetColor(_eventSettings.MarkerColor);
