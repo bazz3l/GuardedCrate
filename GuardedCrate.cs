@@ -10,7 +10,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.3.5")]
+    [Info("Guarded Crate", "Bazz3l", "1.3.6")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -143,6 +143,8 @@ namespace Oxide.Plugins
                 {
                     throw new Exception();
                 }
+                
+                PrintToConsole($"New config created {Name}.json.");
             }
             catch
             {
@@ -152,7 +154,7 @@ namespace Oxide.Plugins
                 
                 LoadDefaultConfig();
             }
-
+            
             SaveConfig();
         }
         
@@ -164,7 +166,7 @@ namespace Oxide.Plugins
 
             InitializeDefault();
             
-            if (!_config.EnableAutoEvent)
+            if (_config.EnableAutoEvent)
             {
                 timer.Every(_config.AutoEventDuration, () => StartEvent(null));
             }
@@ -211,7 +213,7 @@ namespace Oxide.Plugins
                 NpcHealth = 100,
                 NpcName = "Easy Guard",
                 MarkerColor = "#32a844",
-                MarkerBorderColor = "#ffffff",
+                MarkerBorderColor = "#000000",
                 MarkerOpacity = 0.9f
             });
             
@@ -223,8 +225,8 @@ namespace Oxide.Plugins
                 NpcCount = 6,
                 NpcHealth = 100,
                 NpcName = "Easy Guard",
-                MarkerColor = "#32a844",
-                MarkerBorderColor = "#ffffff",
+                MarkerColor = "#eddf45",
+                MarkerBorderColor = "#000000",
                 MarkerOpacity = 0.9f
             });
             
@@ -236,10 +238,10 @@ namespace Oxide.Plugins
                 NpcHealth = 200, 
                 NpcName = "Hard Guard",
                 MarkerColor = "#e81728",
-                MarkerBorderColor = "#ffffff",
+                MarkerBorderColor = "#000000",
                 MarkerOpacity = 0.9f
             });
-            
+
             SaveData();
         }
 
