@@ -10,7 +10,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.3.6")]
+    [Info("Guarded Crate", "Bazz3l", "1.3.7")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -457,8 +457,8 @@ namespace Oxide.Plugins
                 }
 
                 npc.enableSaving = false;
-                npc.SetMaxHealth(_eventSettings.NpcHealth);
                 npc.Spawn();
+                npc.InitializeHealth(_eventSettings.NpcHealth, _eventSettings.NpcHealth);
                 npc.AiDomain.Movement = HTNDomain.MovementRule.FreeMove;
                 npc.AiDomain.MovementRadius = _eventSettings.NpcRadius;
                 npc.AiDefinition.Engagement.DeaggroRange = _eventSettings.NpcAggression + 2f;
