@@ -123,9 +123,9 @@ namespace Oxide.Plugins
                 { "Permission", "No permission" },
                 { "CreateEvent", "<color=#DC143C>Guarded Crate</color>: New event starting stand by." },
                 { "CleanEvents", "<color=#DC143C>Guarded Crate</color>: Cleaning up events." },
-                { "EventStarted", "<color=#DC143C>Guarded Crate</color>: High value loot at <color=#EDDf45>{0}</color>, eliminate the guards before they leave in <color=#EDDf45>{1}</color>." },
-                { "EventEnded", "<color=#DC143C>Guarded Crate</color>: Event ended at <color=#EDDf45>{0}</color>, <color=#EDDf45>{1}</color>, cleared the event." },
-                { "EventClear", "<color=#DC143C>Guarded Crate</color>: Event ended at <color=#EDDf45>{0}</color>, You was not fast enough better luck next time." }
+                { "EventStarted", "<color=#DC143C>Guarded Crate</color>: High-value loot at the location <color=#EDDf45>{0}</color>, eliminate the guards before they leave in <color=#EDDf45>{1}</color>." },
+                { "EventEnded", "<color=#DC143C>Guarded Crate</color>: The event ended at the location <color=#EDDf45>{0}</color>, <color=#EDDf45>{1}</color> cleared the event." },
+                { "EventClear", "<color=#DC143C>Guarded Crate</color>: The event ended at <color=#EDDf45>{0}</color>; You were not fast enough; better luck next time." }
             }, this);
         }
         
