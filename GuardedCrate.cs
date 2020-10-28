@@ -816,7 +816,7 @@ namespace Oxide.Plugins
                 return;
             }
             
-            switch (arg.GetString(0))
+            switch (arg.GetString(0).ToLower())
             {
                 case "start":
                     StartEvent(null);
