@@ -10,7 +10,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.3.7")]
+    [Info("Guarded Crate", "Bazz3l", "1.3.8")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -777,7 +777,7 @@ namespace Oxide.Plugins
         {
             if (!permission.UserHasPermission(player.UserIDString, UsePerm))
             {
-                player.ChatMessage(Lang("NoPermission"));
+                player.ChatMessage(Lang("NoPermission", player.UserIDString));
                 return;
             }
             
@@ -787,7 +787,7 @@ namespace Oxide.Plugins
                 return;
             }
             
-            switch (args[0])
+            switch (args[0].ToLower())
             {
                 case "start":
                     StartEvent(player);
