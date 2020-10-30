@@ -10,7 +10,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.3.9")]
+    [Info("Guarded Crate", "Bazz3l", "1.4.0")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -380,6 +380,7 @@ namespace Oxide.Plugins
 
                 StopSpawnRoutine();
                 DespawnPlane();
+                DespawnMarker();
                 DespawnCrate(completed);
                 DespawnAI();
 
@@ -562,7 +563,7 @@ namespace Oxide.Plugins
                     _crate.Kill();
                     return;
                 }
-                
+
                 if (_eventSettings.AutoHack)
                 {
                     _crate.hackSeconds = HackableLockedCrate.requiredHackSeconds - _eventSettings.AutoHackSeconds;
@@ -571,6 +572,17 @@ namespace Oxide.Plugins
                 
                 _crate.shouldDecay = true;
                 _crate.RefreshDecay();                
+            }
+            
+            private void DespawnMarker()
+            {
+                if (!IsValid(_marker))
+                {
+                    return;
+                }
+
+                _marker.SetParent(null);
+                _marker.Kill();
             }
             
             private void DespawnPlane()
@@ -666,56 +678,57 @@ namespace Oxide.Plugins
 
         private class DropComponent : MonoBehaviour
         {
-            private BaseEntity Chute;
-            private BaseEntity Crate;
-            private bool HasLanded;
+            private BaseEntity _chute;
+            private BaseEntity _crate;
+            private bool _hasLanded;
 
             private void Awake()
             {
-                Crate = gameObject.GetComponent<BaseEntity>();
-                Crate.GetComponent<Rigidbody>().drag = 1.2f;
+                _crate = gameObject.GetComponent<BaseEntity>();
+                
+                _crate.GetComponent<Rigidbody>().drag = 0.5f;
 
                 SpawnChute();
             }
 
             private void FixedUpdate()
             {
-                Collider[] colliders = Physics.OverlapSphere(transform.position, 1f, CollisionLayer);
-                if (!colliders.Any() || HasLanded)
+                int size = Physics.OverlapSphereNonAlloc(transform.position, 1f, Vis.colBuffer, CollisionLayer);
+                if (size <= 0 || _hasLanded)
                 {
                     return;
                 }
                 
-                HasLanded = true;
+                _hasLanded = true;
 
                 RemoveChute();
                     
                 Destroy(this);
             }
-            
+
             private void SpawnChute()
             {
-                Chute = GameManager.server.CreateEntity(ChutePrefab, Crate.transform.position, Quaternion.identity);
-                if (Chute == null)
+                _chute = GameManager.server.CreateEntity(ChutePrefab, transform.position, Quaternion.identity);
+                if (_chute == null)
                 {
                     return;
                 }
                 
-                Chute.enableSaving = false;
-                Chute.Spawn();
-                Chute.SetParent(Crate);
-                Chute.transform.localPosition = Vector3.zero;
-                Chute.SendNetworkUpdate();
+                _chute.enableSaving = false;
+                _chute.Spawn();
+                _chute.SetParent(_crate);
+                _chute.transform.localPosition = Vector3.zero;
+                _chute.SendNetworkUpdate();
             }
 
             private void RemoveChute()
             {
-                if (!IsValid(Chute))
+                if (!IsValid(_chute))
                 {
                     return;
                 }
                 
-                Chute.Kill();
+                _chute.Kill();
             }
         }
 
@@ -772,7 +785,10 @@ namespace Oxide.Plugins
         
         private static void GiveKit(BasePlayer npc, string kit, bool giveKit)
         {
-            if (!giveKit) return;
+            if (!giveKit)
+            {
+                return;
+            }
 
             npc.inventory.Strip();
 
