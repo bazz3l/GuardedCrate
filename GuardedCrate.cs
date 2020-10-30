@@ -55,6 +55,9 @@ namespace Oxide.Plugins
         {
             [JsonProperty("EventDuration (duration the event will be active for)")]
             public float EventDuration;
+            
+            [JsonProperty("EventName (event name)")]
+            public string EventName;
 
             [JsonProperty("AutoHack (enables auto hacking of crates when an event is finished)")]
             public bool AutoHack = true;
@@ -123,8 +126,8 @@ namespace Oxide.Plugins
                 { "Permission", "No permission" },
                 { "CreateEvent", "<color=#DC143C>Guarded Crate</color>: New event starting stand by." },
                 { "CleanEvents", "<color=#DC143C>Guarded Crate</color>: Cleaning up events." },
-                { "EventPre", "<color=#DC143C>Guarded Crate</color>: Event about to start at <color=#EDDf45>{0}</color>." },
-                { "EventStarted", "<color=#DC143C>Guarded Crate</color>: High-value loot at the location <color=#EDDf45>{0}</color>, eliminate the guards before they leave in <color=#EDDf45>{1}</color>." },
+                { "EventPre", "<color=#DC143C>Guarded Crate</color>: <color=#EDDf45>{0}</color>, event about to start at <color=#EDDf45>{1}</color>." },
+                { "EventStarted", "<color=#DC143C>Guarded Crate</color>: <color=#EDDf45>{0}</color>, event started at <color=#EDDf45>{0}</color>, eliminate the guards before they leave in <color=#EDDf45>{1}</color>." },
                 { "EventEnded", "<color=#DC143C>Guarded Crate</color>: The event ended at the location <color=#EDDf45>{0}</color>, <color=#EDDf45>{1}</color> cleared the event!" },
                 { "EventClear", "<color=#DC143C>Guarded Crate</color>: The event ended at <color=#EDDf45>{0}</color>; You were not fast enough; better luck next time!" },
             }, this);
@@ -209,6 +212,7 @@ namespace Oxide.Plugins
             _stored.Events.Add(new EventSetting
             {
                 EventDuration = 800f,
+                EventName = "Low",
                 NpcAggression = 120f,
                 NpcRadius = 15f,
                 NpcCount = 6,
@@ -222,6 +226,7 @@ namespace Oxide.Plugins
             _stored.Events.Add(new EventSetting
             {
                 EventDuration = 800f,
+                EventName = "Medium",
                 NpcAggression = 120f,
                 NpcRadius = 15f,
                 NpcCount = 8,
@@ -234,6 +239,7 @@ namespace Oxide.Plugins
             
             _stored.Events.Add(new EventSetting {
                 EventDuration = 1800f,
+                EventName = "Hard",
                 NpcAggression = 150f,
                 NpcRadius = 50f,
                 NpcCount = 10,
@@ -246,6 +252,7 @@ namespace Oxide.Plugins
             
             _stored.Events.Add(new EventSetting {
                 EventDuration = 1800f,
+                EventName = "Elite",
                 NpcAggression = 180f,
                 NpcRadius = 50f,
                 NpcCount = 12,
@@ -359,7 +366,7 @@ namespace Oxide.Plugins
                 
                 _plugin?.AddEvent(this);
                 
-                Message("EventPre", GetGrid(_plane.dropPosition));
+                Message("EventPre", _eventSettings.EventName, GetGrid(_plane.dropPosition));
             }
 
             public void StartEvent(Vector3 position)
@@ -371,7 +378,7 @@ namespace Oxide.Plugins
                 StartSpawnRoutine();
                 StartDespawnTimer();
 
-                Message("EventStarted", GetGrid(_position), GetTime((int)_eventSettings.EventDuration));
+                Message("EventStarted", _eventSettings.EventName, GetGrid(_position), GetTime((int)_eventSettings.EventDuration));
             }
 
             public void StopEvent(bool completed = false)
@@ -686,7 +693,7 @@ namespace Oxide.Plugins
             {
                 _crate = gameObject.GetComponent<BaseEntity>();
                 
-                _crate.GetComponent<Rigidbody>().drag = 0.5f;
+                _crate.GetComponent<Rigidbody>().drag = 0.7f;
 
                 SpawnChute();
             }
