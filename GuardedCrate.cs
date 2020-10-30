@@ -35,10 +35,10 @@ namespace Oxide.Plugins
         
         private class PluginConfig
         {
-            [JsonProperty(PropertyName = "AutoEvent (enables auto event spawns)")]
+            [JsonProperty("AutoEvent (enables auto event spawns)")]
             public bool EnableAutoEvent = true;
             
-            [JsonProperty(PropertyName = "AutoEventDuration (time until new event spawns)")]
+            [JsonProperty("AutoEventDuration (time until new event spawns)")]
             public float AutoEventDuration = 1800f;
         }
 
@@ -53,52 +53,52 @@ namespace Oxide.Plugins
         
         private class EventSetting
         {
-            [JsonProperty(PropertyName = "EventDuration (duration the event will be active for)")]
+            [JsonProperty("EventDuration (duration the event will be active for)")]
             public float EventDuration;
 
-            [JsonProperty(PropertyName = "AutoHack (enables auto hacking of crates when an event is finished)")]
+            [JsonProperty("AutoHack (enables auto hacking of crates when an event is finished)")]
             public bool AutoHack = true;
             
-            [JsonProperty(PropertyName = "AutoHackSeconds (countdown for crate to unlock in seconds)")]
+            [JsonProperty("AutoHackSeconds (countdown for crate to unlock in seconds)")]
             public float AutoHackSeconds = 60f;
 
-            [JsonProperty(PropertyName = "UseKits (use custom kits plugin)")]
-            public bool UseKits;
+            [JsonProperty("UseKits (use custom kits plugin)")]
+            public bool UseKits = false;
             
-            [JsonProperty(PropertyName = "KitName (custom kit name)")]
+            [JsonProperty("KitName (custom kit name)")]
             public string KitName;
             
-            [JsonProperty(PropertyName = "NpcName (custom name)")]
+            [JsonProperty("NpcName (custom name)")]
             public string NpcName;
             
-            [JsonProperty(PropertyName = "NpcCount (number of guards to spawn)")]
+            [JsonProperty("NpcCount (number of guards to spawn)")]
             public int NpcCount;
             
-            [JsonProperty(PropertyName = "NpcHealth (health guards spawn with)")]
+            [JsonProperty("NpcHealth (health guards spawn with)")]
             public float NpcHealth;
             
-            [JsonProperty(PropertyName = "NpcRadius (max distance guards will roam)")]
+            [JsonProperty("NpcRadius (max distance guards will roam)")]
             public float NpcRadius;
             
-            [JsonProperty(PropertyName = "NpcAggression (max aggression distance guards will target)")]
+            [JsonProperty("NpcAggression (max aggression distance guards will target)")]
             public float NpcAggression;
 
-            [JsonProperty(PropertyName = "MarkerColor (marker color)")]
+            [JsonProperty("MarkerColor (marker color)")]
             public string MarkerColor;
             
-            [JsonProperty(PropertyName = "MarkerBorderColor (marker border color)")]
+            [JsonProperty("MarkerBorderColor (marker border color)")]
             public string MarkerBorderColor;
             
-            [JsonProperty(PropertyName = "MarkerOpacity (marker opacity)")]
+            [JsonProperty("MarkerOpacity (marker opacity)")]
             public float MarkerOpacity = 1f;
+
+            [JsonProperty("UseLoot (use custom loot table)")]
+            public bool UseLoot = false;
             
-            [JsonProperty(PropertyName = "UseLoot (use custom loot table)")]
-            public bool UseLoot;
-            
-            [JsonProperty(PropertyName = "MaxLootItems (max items to spawn in crate)")]
+            [JsonProperty("MaxLootItems (max items to spawn in crate)")]
             public int MaxLootItems = 6;
             
-            [JsonProperty(PropertyName = "CustomLoot (items to spawn in crate)")]
+            [JsonProperty("CustomLoot (items to spawn in crate)")]
             public List<LootItem> CustomLoot = new List<LootItem>();
         }
 
@@ -165,8 +165,9 @@ namespace Oxide.Plugins
         {
             permission.RegisterPermission(UsePerm, this);
 
-            InitializeDefault();
-            
+            RegisterCommands();
+            RegisterDefaults();
+
             if (_config.EnableAutoEvent)
             {
                 timer.Every(_config.AutoEventDuration, () => StartEvent(null));
@@ -198,7 +199,7 @@ namespace Oxide.Plugins
         
         #region Core
 
-        private void InitializeDefault()
+        private void RegisterDefaults()
         {
             if (_stored.Events.Count != 0)
             {
@@ -223,9 +224,9 @@ namespace Oxide.Plugins
                 EventDuration = 800f,
                 NpcAggression = 120f,
                 NpcRadius = 15f,
-                NpcCount = 6,
-                NpcHealth = 100,
-                NpcName = "Easy Guard",
+                NpcCount = 8,
+                NpcHealth = 150,
+                NpcName = "Medium Guard",
                 MarkerColor = "#eddf45",
                 MarkerBorderColor = "#000000",
                 MarkerOpacity = 0.9f
@@ -238,6 +239,18 @@ namespace Oxide.Plugins
                 NpcCount = 10,
                 NpcHealth = 200, 
                 NpcName = "Hard Guard",
+                MarkerColor = "#3060d9",
+                MarkerBorderColor = "#000000",
+                MarkerOpacity = 0.9f
+            });
+            
+            _stored.Events.Add(new EventSetting {
+                EventDuration = 1800f,
+                NpcAggression = 180f,
+                NpcRadius = 50f,
+                NpcCount = 12,
+                NpcHealth = 350, 
+                NpcName = "Elite Guard",
                 MarkerColor = "#e81728",
                 MarkerBorderColor = "#000000",
                 MarkerOpacity = 0.9f
@@ -246,6 +259,12 @@ namespace Oxide.Plugins
             SaveData();
         }
 
+        private void RegisterCommands()
+        {
+            cmd.AddChatCommand("gc", this, GCChatCommand);
+            cmd.AddConsoleCommand("gc", this, nameof(GCConsoleCommand));
+        }
+        
         private void StartEvent(BasePlayer player)
         {
             EventSetting eventSettings = _stored.Events.GetRandom();
@@ -585,7 +604,10 @@ namespace Oxide.Plugins
 
             public void OnNPCDeath(HTNPlayer npc, BasePlayer player)
             {
-                NpcPlayers.Remove(npc);
+                if (!NpcPlayers.Remove(npc))
+                {
+                    return;
+                }
                 
                 if (NpcPlayers.Count > 0)
                 {
@@ -774,8 +796,7 @@ namespace Oxide.Plugins
         #endregion
 
         #region Command
-
-        [ChatCommand("gc")]
+        
         private void GCChatCommand(BasePlayer player, string command, string[] args)
         {
             if (!permission.UserHasPermission(player.UserIDString, UsePerm))
@@ -804,7 +825,6 @@ namespace Oxide.Plugins
             }
         }
         
-        [ConsoleCommand("gc")]
         private void GCConsoleCommand(ConsoleSystem.Arg arg)
         {
             if (!arg.IsRcon)
