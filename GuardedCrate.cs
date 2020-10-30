@@ -349,7 +349,6 @@ namespace Oxide.Plugins
             private Vector3 _position;
             private Coroutine _coroutine;
             private Timer _eventTimer;
-            private bool _eventCompleted;
             private EventSetting _eventSettings;
 
             public void PreEvent(EventSetting eventSettings)
@@ -377,13 +376,11 @@ namespace Oxide.Plugins
 
             public void StopEvent(bool completed = false)
             {
-                _eventCompleted = completed;
-
                 _eventTimer?.Destroy();
 
                 StopSpawnRoutine();
                 DespawnPlane();
-                DespawnCrate();
+                DespawnCrate(completed);
                 DespawnAI();
 
                 _plugin?.DelEvent(this);
@@ -422,7 +419,7 @@ namespace Oxide.Plugins
             private void ResetDespawnTimer()
             {
                 _eventTimer?.Destroy();
-
+                
                 StartDespawnTimer();
             }
 
@@ -553,26 +550,27 @@ namespace Oxide.Plugins
                 }
             }
 
-            private void DespawnCrate()
+            private void DespawnCrate(bool completed = false)
             {
                 if (!IsValid(_crate))
                 {
                     return;
                 }
 
-                if (!_eventCompleted)
+                if (!completed)
                 {
                     _crate.Kill();
                     return;
                 }
                 
-                if (!_eventSettings.AutoHack)
+                if (_eventSettings.AutoHack)
                 {
-                    return;
+                    _crate.hackSeconds = HackableLockedCrate.requiredHackSeconds - _eventSettings.AutoHackSeconds;
+                    _crate.StartHacking();                    
                 }
-                    
-                _crate.hackSeconds = HackableLockedCrate.requiredHackSeconds - _eventSettings.AutoHackSeconds;
-                _crate.StartHacking();
+                
+                _crate.shouldDecay = true;
+                _crate.RefreshDecay();                
             }
             
             private void DespawnPlane()
