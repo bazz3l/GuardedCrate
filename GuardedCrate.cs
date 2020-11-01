@@ -126,7 +126,6 @@ namespace Oxide.Plugins
                 { "Permission", "No permission" },
                 { "CreateEvent", "<color=#DC143C>Guarded Crate</color>: New event starting stand by." },
                 { "CleanEvents", "<color=#DC143C>Guarded Crate</color>: Cleaning up events." },
-                { "EventPre", "<color=#DC143C>Guarded Crate</color>: <color=#EDDf45>{0}</color>, event about to start at <color=#EDDf45>{1}</color>." },
                 { "EventStarted", "<color=#DC143C>Guarded Crate</color>: <color=#EDDf45>{0}</color>, event started at <color=#EDDf45>{0}</color>, eliminate the guards before they leave in <color=#EDDf45>{1}</color>." },
                 { "EventEnded", "<color=#DC143C>Guarded Crate</color>: The event ended at the location <color=#EDDf45>{0}</color>, <color=#EDDf45>{1}</color> cleared the event!" },
                 { "EventClear", "<color=#DC143C>Guarded Crate</color>: The event ended at <color=#EDDf45>{0}</color>; You were not fast enough; better luck next time!" },
@@ -212,7 +211,7 @@ namespace Oxide.Plugins
             _stored.Events.Add(new EventSetting
             {
                 EventDuration = 800f,
-                EventName = "Low",
+                EventName = "Low Level",
                 NpcAggression = 120f,
                 NpcRadius = 15f,
                 NpcCount = 6,
@@ -226,7 +225,7 @@ namespace Oxide.Plugins
             _stored.Events.Add(new EventSetting
             {
                 EventDuration = 800f,
-                EventName = "Medium",
+                EventName = "Medium Level",
                 NpcAggression = 120f,
                 NpcRadius = 15f,
                 NpcCount = 8,
@@ -239,7 +238,7 @@ namespace Oxide.Plugins
             
             _stored.Events.Add(new EventSetting {
                 EventDuration = 1800f,
-                EventName = "Hard",
+                EventName = "Hard Level",
                 NpcAggression = 150f,
                 NpcRadius = 50f,
                 NpcCount = 10,
@@ -252,7 +251,7 @@ namespace Oxide.Plugins
             
             _stored.Events.Add(new EventSetting {
                 EventDuration = 1800f,
-                EventName = "Elite",
+                EventName = "Elite Level",
                 NpcAggression = 180f,
                 NpcRadius = 50f,
                 NpcCount = 12,
@@ -365,8 +364,6 @@ namespace Oxide.Plugins
                 SpawnPlane();
                 
                 _plugin?.AddEvent(this);
-                
-                Message("EventPre", _eventSettings.EventName, GetGrid(_plane.dropPosition));
             }
 
             public void StartEvent(Vector3 position)
