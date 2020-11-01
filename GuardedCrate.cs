@@ -10,7 +10,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.4.0")]
+    [Info("Guarded Crate", "Bazz3l", "1.4.1")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -68,8 +68,8 @@ namespace Oxide.Plugins
             [JsonProperty("UseKits (use custom kits plugin)")]
             public bool UseKits = false;
             
-            [JsonProperty("KitName (custom kit name)")]
-            public string KitName;
+            [JsonProperty("Kits (custom kits)")]
+            public List<string> Kits = new List<string>();
             
             [JsonProperty("NpcName (custom name)")]
             public string NpcName;
@@ -173,7 +173,7 @@ namespace Oxide.Plugins
 
             if (_config.EnableAutoEvent)
             {
-                timer.Every(_config.AutoEventDuration, () => StartEvent(null));
+                timer.Every(_config.AutoEventDuration, () => StartEvent(null, null));
             }
             
             timer.Every(30f, RefreshEvents);
@@ -272,10 +272,10 @@ namespace Oxide.Plugins
             cmd.AddConsoleCommand("gc", this, nameof(GCConsoleCommand));
         }
         
-        private void StartEvent(BasePlayer player)
+        private void StartEvent(BasePlayer player, string[] args)
         {
-            EventSetting eventSettings = _stored.Events.GetRandom();
-            
+            EventSetting eventSettings = _stored.Events.FirstOrDefault(x => x.EventName == string.Join(" ", args)) ?? _stored.Events.GetRandom();
+
             CrateEvent crateEvent = new CrateEvent();
 
             crateEvent.PreEvent(eventSettings);
@@ -490,15 +490,14 @@ namespace Oxide.Plugins
                 npc.AiDomain.MovementRadius = _eventSettings.NpcRadius;
                 npc.AiDefinition.Engagement.DeaggroRange = _eventSettings.NpcAggression + 2f;
                 npc.AiDefinition.Engagement.AggroRange = _eventSettings.NpcAggression + 1f;
-                npc.AiDefinition.Engagement.Defensiveness = 1f;
-                npc.AiDefinition.Engagement.Hostility = 1f;
                 npc.displayName = _eventSettings.NpcName;
                 npc.LootPanelName = npc.displayName;
+                npc.weaponDrawnDuration = 0f;
                 npc.SendNetworkUpdateImmediate();
 
                 NpcPlayers.Add(npc);
 
-                npc.Invoke(() => GiveKit(npc, _eventSettings.KitName, _eventSettings.UseKits), 1f);
+                npc.Invoke(() => GiveKit(npc, _eventSettings.Kits.GetRandom(), _eventSettings.UseKits), 1f);
             }
 
             private IEnumerator SpawnAI()
@@ -539,15 +538,15 @@ namespace Oxide.Plugins
                 {
                     return;
                 }
-
-                _crate.inventory.Clear();
-                
-                ItemManager.DoRemoves();
-
-                _crate.inventory.capacity = _eventSettings.CustomLoot.Count;
                 
                 List<LootItem> lootItems = CreateLoot();
                 
+                _crate.inventory.Clear();
+                
+                ItemManager.DoRemoves();
+                
+                _crate.inventory.capacity = lootItems.Count;
+
                 foreach (LootItem lootItem in lootItems)
                 {
                     ItemDefinition item = ItemManager.FindItemDefinition(lootItem.Shortname);
@@ -556,6 +555,8 @@ namespace Oxide.Plugins
 
                     _crate.inventory.AddItem(item, UnityEngine.Random.Range(lootItem.MinAmount, lootItem.MaxAmount));
                 }
+                
+                lootItems.Clear();
             }
 
             private void DespawnCrate(bool completed = false)
@@ -760,7 +761,7 @@ namespace Oxide.Plugins
             return hit.point;
         }
 
-        private static  string GetGrid(Vector3 pos)
+        private static string GetGrid(Vector3 pos)
         {
             char letter = 'A';
             float x     = Mathf.Floor((pos.x + (ConVar.Server.worldsize / 2)) / 146.3f) % 26;
@@ -790,14 +791,12 @@ namespace Oxide.Plugins
             return string.Format("{0:D2}h:{1:D2}m:{2:D2}s", t.Hours, t.Minutes, t.Seconds);
         }
         
-        private static void GiveKit(BasePlayer npc, string kit, bool giveKit)
+        private static void GiveKit(HTNPlayer npc, string kit, bool giveKit)
         {
             if (!giveKit)
             {
                 return;
             }
-
-            npc.inventory.Strip();
 
             Interface.Oxide.CallHook("GiveKit", npc, kit);
         }
@@ -826,7 +825,7 @@ namespace Oxide.Plugins
                 return;
             }
             
-            if (args.Length != 1)
+            if (args.Length < 1)
             {
                 player.ChatMessage(Lang("InvalidSyntax", player.UserIDString));
                 return;
@@ -835,7 +834,7 @@ namespace Oxide.Plugins
             switch (args[0].ToLower())
             {
                 case "start":
-                    StartEvent(player);
+                    StartEvent(player, args.Skip(1).ToArray());
                     break;
                 case "stop":
                     StopEvents(player);
@@ -863,7 +862,7 @@ namespace Oxide.Plugins
             switch (arg.GetString(0).ToLower())
             {
                 case "start":
-                    StartEvent(null);
+                    StartEvent(null, arg.Args.Skip(1).ToArray());
                     break;
                 case "stop":
                     StopEvents(null);
