@@ -10,7 +10,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.4.1")]
+    [Info("Guarded Crate", "Bazz3l", "1.4.2")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -126,7 +126,7 @@ namespace Oxide.Plugins
                 { "Permission", "No permission" },
                 { "CreateEvent", "<color=#DC143C>Guarded Crate</color>: New event starting stand by." },
                 { "CleanEvents", "<color=#DC143C>Guarded Crate</color>: Cleaning up events." },
-                { "EventStarted", "<color=#DC143C>Guarded Crate</color>: <color=#EDDf45>{0}</color>, event started at <color=#EDDf45>{0}</color>, eliminate the guards before they leave in <color=#EDDf45>{1}</color>." },
+                { "EventStarted", "<color=#DC143C>Guarded Crate</color>: <color=#EDDf45>{0}</color>, event started at <color=#EDDf45>{1}</color>, eliminate the guards before they leave in <color=#EDDf45>{2}</color>." },
                 { "EventEnded", "<color=#DC143C>Guarded Crate</color>: The event ended at the location <color=#EDDf45>{0}</color>, <color=#EDDf45>{1}</color> cleared the event!" },
                 { "EventClear", "<color=#DC143C>Guarded Crate</color>: The event ended at <color=#EDDf45>{0}</color>; You were not fast enough; better luck next time!" },
             }, this);
