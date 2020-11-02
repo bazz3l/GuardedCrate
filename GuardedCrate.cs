@@ -10,7 +10,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.4.2")]
+    [Info("Guarded Crate", "Bazz3l", "1.4.3")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -172,7 +172,7 @@ namespace Oxide.Plugins
 
             if (_config.EnableAutoEvent)
             {
-                timer.Every(_config.AutoEventDuration, () => StartEvent(null, null));
+                timer.Every(_config.AutoEventDuration, () => StartEvent(null, new string[] {}));
             }
             
             timer.Every(30f, RefreshEvents);
