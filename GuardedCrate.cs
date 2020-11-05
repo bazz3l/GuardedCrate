@@ -5,13 +5,12 @@ using Newtonsoft.Json;
 using System.Linq;
 using Oxide.Core;
 using Rust.Ai.HTN;
-using Rust.Ai.HTN.Scientist;
 using UnityEngine;
 using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.4.4")]
+    [Info("Guarded Crate", "Bazz3l", "1.4.5")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -759,21 +758,16 @@ namespace Oxide.Plugins
 
             return hit.point;
         }
-
-        private static string GetGrid(Vector3 pos)
+        
+        private static string GetGrid(Vector3 position)
         {
-            char letter = 'A';
-            float x     = Mathf.Floor((pos.x + (ConVar.Server.worldsize / 2)) / 146.3f) % 26;
-            float count = Mathf.Floor(Mathf.Floor((pos.x + (ConVar.Server.worldsize / 2)) / 146.3f) / 26);
-            float z     = Mathf.Floor(ConVar.Server.worldsize / 146.3f) - Mathf.Floor((pos.z + (ConVar.Server.worldsize / 2)) / 146.3f);
-            
-            letter = (char)(letter + x);
-            
-            string secondLetter = count <= 0 ? string.Empty : ((char)('A' + (count - 1))).ToString();
-            
-            return $"{secondLetter}{letter}{z}";
-        }
+            Vector2 r = new Vector2(World.Size / 2 + position.x, World.Size / 2 + position.z);
+            float x = Mathf.Floor(r.x / 146.3f) % 26;
+            float z = Mathf.Floor(World.Size / 146.3f) - Mathf.Floor(r.y / 146.3f);
 
+            return $"{(char)('A' + x)}{z - 1}";
+        }
+        
         private static Color GetColor(string hex)
         {
             Color color = Color.black;
