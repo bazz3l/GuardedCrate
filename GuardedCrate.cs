@@ -461,7 +461,6 @@ namespace Oxide.Plugins
                     return;
                 }
                 
-                _crate.panelName = _eventSettings.EventName;
                 _crate.enableSaving = false;
                 _crate.shouldDecay = false;
                 _crate.SetWasDropped();
@@ -796,6 +795,7 @@ namespace Oxide.Plugins
             Interface.Oxide.CallHook("GiveKit", npc, kit);
 
             Item item = npc.inventory.containerBelt.GetSlot(0);
+            
             if (item == null)
             {
                 return;
