@@ -5,6 +5,7 @@ using Newtonsoft.Json;
 using System.Linq;
 using Oxide.Core;
 using Rust.Ai.HTN;
+using Rust.Ai.HTN.Scientist;
 using UnityEngine;
 using VLB;
 
@@ -461,12 +462,13 @@ namespace Oxide.Plugins
                     return;
                 }
                 
+                _crate.panelName = _eventSettings.EventName;
                 _crate.enableSaving = false;
                 _crate.shouldDecay = false;
                 _crate.SetWasDropped();
                 _crate.Spawn();
                 _crate.gameObject.GetOrAddComponent<DropComponent>();
-                
+
                 _marker.SetParent(_crate);
                 _marker.transform.localPosition = Vector3.zero;
                 _marker.SendUpdate();
@@ -494,7 +496,7 @@ namespace Oxide.Plugins
 
                 NpcPlayers.Add(npc);
 
-                npc.Invoke(() => GiveKit(npc, _eventSettings.Kits.GetRandom(), _eventSettings.UseKits), 0.2f);
+                npc.Invoke(() => GiveKit(npc, _eventSettings.Kits.GetRandom(), _eventSettings.UseKits), 2f);
             }
 
             private IEnumerator SpawnAI()
@@ -794,10 +796,18 @@ namespace Oxide.Plugins
             {
                 return;
             }
-            
+
             npc.inventory.Strip();
             
             Interface.Oxide.CallHook("GiveKit", npc, kit);
+
+            Item item = npc.inventory.containerBelt.GetSlot(0);
+            if (item == null)
+            {
+                return;
+            }
+            
+            npc.UpdateActiveItem(item.uid);
         }
 
         private static bool IsValid(BaseEntity entity)
