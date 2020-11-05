@@ -10,7 +10,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.4.3")]
+    [Info("Guarded Crate", "Bazz3l", "1.4.4")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -494,7 +494,7 @@ namespace Oxide.Plugins
 
                 NpcPlayers.Add(npc);
 
-                npc.Invoke(() => GiveKit(npc, _eventSettings.Kits.GetRandom(), _eventSettings.UseKits), 1f);
+                npc.Invoke(() => GiveKit(npc, _eventSettings.Kits.GetRandom(), _eventSettings.UseKits), 0.2f);
             }
 
             private IEnumerator SpawnAI()
@@ -794,7 +794,9 @@ namespace Oxide.Plugins
             {
                 return;
             }
-
+            
+            npc.inventory.Strip();
+            
             Interface.Oxide.CallHook("GiveKit", npc, kit);
         }
 
