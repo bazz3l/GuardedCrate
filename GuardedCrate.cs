@@ -4,16 +4,19 @@ using System;
 using Newtonsoft.Json;
 using System.Linq;
 using Oxide.Core;
+using Oxide.Core.Plugins;
 using Rust.Ai.HTN;
 using UnityEngine;
 using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.4.5")]
+    [Info("Guarded Crate", "Bazz3l", "1.4.6")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
+        [PluginReference] Plugin Clans;
+        
         #region Fields
 
         private const string CratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
@@ -632,7 +635,9 @@ namespace Oxide.Plugins
 
                 if (player != null)
                 {
-                    Message("EventEnded", GetGrid(_position), player.displayName);
+                    string clanTag = GetClan(player);
+                    
+                    Message("EventEnded", GetGrid(_position), string.IsNullOrEmpty(clanTag) ? player.displayName : $"[{clanTag}]");
                     
                     StopEvent(true);
                 }
@@ -756,6 +761,11 @@ namespace Oxide.Plugins
             }
 
             return hit.point;
+        }
+
+        private static string GetClan(BasePlayer player)
+        {
+            return _plugin.Clans?.Call<string>("GetClanOf", player);
         }
         
         private static string GetGrid(Vector3 position)
