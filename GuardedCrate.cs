@@ -763,11 +763,8 @@ namespace Oxide.Plugins
             return hit.point;
         }
 
-        private static string GetClan(BasePlayer player)
-        {
-            return _plugin.Clans?.Call<string>("GetClanOf", player);
-        }
-        
+        private static string GetClan(BasePlayer player) => _plugin.Clans?.Call<string>("GetClanOf", player);
+
         private static string GetGrid(Vector3 position)
         {
             Vector2 r = new Vector2(World.Size / 2 + position.x, World.Size / 2 + position.z);
