@@ -121,7 +121,7 @@ namespace Oxide.Plugins
             [JsonProperty("CustomLoot (items to spawn in crate)")]
             public List<LootItem> CustomLoot = new List<LootItem>();
             
-            [JsonProperty("CustomPositions (custom positions for the events to spawn)")]
+            [JsonProperty("CustomPositions (custom positions for the event to spawn)")]
             public readonly List<Vector3> CustomPositions = new List<Vector3>();
         }
 
