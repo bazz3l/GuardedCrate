@@ -74,7 +74,7 @@ namespace Oxide.Plugins
             public string EventName;
 
             [JsonProperty("DropSpeed (sets how fast the drop should fall)")]
-            public float DropSpeed = 0.8f;
+            public float DropSpeed = 0.7f;
 
             [JsonProperty("AutoHack (enables auto hacking of crates when an event is finished)")]
             public bool AutoHack = true;
@@ -83,7 +83,7 @@ namespace Oxide.Plugins
             public float AutoHackSeconds = 60f;
 
             [JsonProperty("UseKits (use custom kits plugin)")]
-            public bool UseKits = false;
+            public bool UseKits;
             
             [JsonProperty("Kits (custom kits)")]
             public List<string> Kits = new List<string>();
@@ -110,10 +110,10 @@ namespace Oxide.Plugins
             public string MarkerBorderColor;
             
             [JsonProperty("MarkerOpacity (marker opacity)")]
-            public float MarkerOpacity = 1f;
+            public float MarkerOpacity;
 
             [JsonProperty("UseLoot (use custom loot table)")]
-            public bool UseLoot = false;
+            public bool UseLoot;
             
             [JsonProperty("MaxLootItems (max items to spawn in crate)")]
             public int MaxLootItems = 6;
@@ -262,9 +262,9 @@ namespace Oxide.Plugins
         {
             _stored.Events.Add(new EventSetting
             {
-                EventDuration = 800f,
-                EventName = "Low Level",
-                NpcAggression = 120f,
+                EventDuration = 1200f,
+                EventName = "Easy Level",
+                NpcAggression = 150f,
                 NpcRadius = 15f,
                 NpcCount = 6,
                 NpcHealth = 100,
@@ -276,9 +276,9 @@ namespace Oxide.Plugins
             
             _stored.Events.Add(new EventSetting
             {
-                EventDuration = 800f,
+                EventDuration = 1200f,
                 EventName = "Medium Level",
-                NpcAggression = 120f,
+                NpcAggression = 180f,
                 NpcRadius = 15f,
                 NpcCount = 8,
                 NpcHealth = 150,
@@ -291,7 +291,7 @@ namespace Oxide.Plugins
             _stored.Events.Add(new EventSetting {
                 EventDuration = 1800f,
                 EventName = "Hard Level",
-                NpcAggression = 150f,
+                NpcAggression = 200f,
                 NpcRadius = 50f,
                 NpcCount = 10,
                 NpcHealth = 200, 
@@ -302,9 +302,9 @@ namespace Oxide.Plugins
             });
             
             _stored.Events.Add(new EventSetting {
-                EventDuration = 1800f,
+                EventDuration = 1200f,
                 EventName = "Elite Level",
-                NpcAggression = 180f,
+                NpcAggression = 250f,
                 NpcRadius = 50f,
                 NpcCount = 12,
                 NpcHealth = 350, 
