@@ -120,9 +120,6 @@ namespace Oxide.Plugins
             
             [JsonProperty("CustomLoot (items to spawn in crate)")]
             public List<LootItem> CustomLoot = new List<LootItem>();
-            
-            [JsonProperty("CustomPositions (custom positions for the event to spawn)")]
-            public readonly List<Vector3> CustomPositions = new List<Vector3>();
         }
 
         private void LoadData()
@@ -497,7 +494,6 @@ namespace Oxide.Plugins
                     return;
                 }
                 
-                _plane.dropPosition = _eventSettings.CustomPositions.GetRandom();
                 _plane.Spawn();
                 _plane.GetOrAddComponent<CargoComponent>().SetEvent(this);
             }
@@ -708,7 +704,7 @@ namespace Oxide.Plugins
                 if (player != null)
                 {
                     LockCrateToPlayer(player.userID);
-
+                    
                     Message("EventEnded", GetGrid(_position), player.displayName);
                     
                     StopEvent(true);
