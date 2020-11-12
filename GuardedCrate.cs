@@ -54,9 +54,11 @@ namespace Oxide.Plugins
 
         private class PluginData
         {
+            [JsonProperty("Events (available events)")]
             public readonly List<EventSetting> Events = new List<EventSetting>();
             
-            public List<Vector3> Positions = new List<Vector3>();
+            [JsonProperty("Positions (custom positions for the events to spawn)")]
+            public readonly List<Vector3> Positions = new List<Vector3>();
         }
         
         private class LootItem
@@ -163,6 +165,7 @@ namespace Oxide.Plugins
                 { "Permission", "No permission" },
                 { "CreateEvent", "<color=#dc143c>Guarded Crate</color>: New event starting stand by." },
                 { "CleanEvents", "<color=#dc143c>Guarded Crate</color>: Cleaning up events." },
+                { "EventPos", "<color=#dc143c>Guarded Crate</color>: Position was added." },
                 { "EventStarted", "<color=#dc143c>Guarded Crate</color>: <color=#ffc55c>{0}</color>, event started at <color=#ffc55c>{1}</color>, eliminate the guards before they leave in <color=#ffc55c>{2}</color>." },
                 { "EventLocked", "<color=#dc143c>Guarded Crate</color>: This crate is locked to the event winners." },
                 { "EventEnded", "<color=#dc143c>Guarded Crate</color>: The event ended at the location <color=#ffc55c>{0}</color>, <color=#ffc55c>{1}</color> cleared the event!" },
@@ -365,6 +368,20 @@ namespace Oxide.Plugins
 
                 crateEvent?.RefreshEvent();
             }
+        }
+
+        private void EventPos(BasePlayer player)
+        {
+            Vector3 pos = player.ServerPosition;
+            
+            if (!_stored.Positions.Contains(pos))
+            {
+                _stored.Positions.Add(pos);
+                
+                SaveData();
+            }
+            
+            player.ChatMessage(Lang("EventPos", player.UserIDString));
         }
         
         private IEnumerator DespawnRoutine()
@@ -935,6 +952,9 @@ namespace Oxide.Plugins
                     break;
                 case "stop":
                     StopEvents(player);
+                    break;
+                case "pos":
+                    EventPos(player);
                     break;
                 default:
                     player.ChatMessage(Lang("InvalidSyntax", player.UserIDString));
