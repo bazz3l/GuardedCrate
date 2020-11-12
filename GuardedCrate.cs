@@ -20,7 +20,6 @@ namespace Oxide.Plugins
         #region Fields
 
         private const string CratePrefab = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
-        private const string SmokePrefab = "assets/prefabs/tools/supply signal/grenade.supplysignal.deployed.prefab";
         private const string MarkerPrefab = "assets/prefabs/tools/map/genericradiusmarker.prefab";
         private const string ChutePrefab = "assets/prefabs/misc/parachute/parachute.prefab";
         private const string NpcPrefab = "assets/prefabs/npc/scientist/htn/scientist_full_any.prefab";
@@ -764,7 +763,6 @@ namespace Oxide.Plugins
         private class DropComponent : MonoBehaviour
         {
             private Rigidbody _rbody;
-            private BaseEntity _smoke;
             private BaseEntity _chute;
             private BaseEntity _crate;
             private bool _hasLanded;
@@ -775,7 +773,6 @@ namespace Oxide.Plugins
                 _rbody = GetComponent<Rigidbody>();
 
                 SpawnChute();
-                SpawnSmoke();
             }
 
             private void FixedUpdate()
@@ -807,40 +804,9 @@ namespace Oxide.Plugins
                 _chute.transform.localPosition = Vector3.zero;
                 _chute.SendNetworkUpdate();
             }
-            
-            private void SpawnSmoke()
-            {
-                _smoke = GameManager.server.CreateEntity(SmokePrefab, transform.position, Quaternion.identity);
-                if (_smoke == null)
-                {
-                    return;
-                }
-                
-                Destroy(_smoke.GetComponent<Rigidbody>());
-
-                _smoke.enableSaving = false;
-                _smoke.Spawn();
-                _smoke.SetParent(_crate);
-                _smoke.transform.localPosition = Vector3.zero;
-
-                SupplySignal supplySignal = _smoke.GetComponent<SupplySignal>();
-                if (supplySignal != null)
-                {
-                    supplySignal.CancelInvoke(supplySignal.Explode);
-                    supplySignal.Invoke(supplySignal.FinishUp, 210f);
-                    supplySignal.SetFlag(BaseEntity.Flags.On, true, false, true);
-                }
-
-                _smoke.SendNetworkUpdate();
-            }
 
             private void RemoveParented()
             {
-                if (IsValid(_smoke))
-                {
-                    _smoke.Kill();
-                }
-
                 if (IsValid(_chute))
                 {
                     _chute.Kill();
