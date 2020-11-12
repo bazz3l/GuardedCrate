@@ -55,6 +55,8 @@ namespace Oxide.Plugins
         private class PluginData
         {
             public readonly List<EventSetting> Events = new List<EventSetting>();
+            
+            public List<Vector3> Positions = new List<Vector3>();
         }
         
         private class LootItem
@@ -71,10 +73,7 @@ namespace Oxide.Plugins
             
             [JsonProperty("EventName (event name)")]
             public string EventName;
-            
-            [JsonProperty("EventPosition (position event will spawn at)")]
-            public Vector3 EventPosition = Vector3.zero;
-            
+
             [JsonProperty("DropSpeed (sets how fast the drop should fall)")]
             public float DropSpeed = 0.8f;
 
@@ -340,7 +339,7 @@ namespace Oxide.Plugins
 
             CrateEvent crateEvent = new CrateEvent();
 
-            crateEvent.PreEvent(eventSettings);
+            crateEvent.PreEvent(eventSettings, _stored.Positions.GetRandom());
 
             if (player != null)
             {
@@ -416,11 +415,11 @@ namespace Oxide.Plugins
             private Timer _eventTimer;
             private EventSetting _eventSettings;
 
-            public void PreEvent(EventSetting eventSettings)
+            public void PreEvent(EventSetting eventSettings, Vector3 position)
             {
                 _eventSettings = eventSettings;
                 
-                SpawnPlane();
+                SpawnPlane(position);
 
                 _plugin.AddEvent(this);
             }
@@ -487,19 +486,15 @@ namespace Oxide.Plugins
                 StartDespawnTimer();
             }
 
-            private void SpawnPlane()
+            private void SpawnPlane(Vector3 position)
             {
                 _plane = GameManager.server.CreateEntity(PlanePrefab) as CargoPlane;
                 if (_plane == null)
                 {
                     return;
                 }
-
-                if (_eventSettings.EventPosition != Vector3.zero)
-                {
-                    _plane.InitDropPosition(_eventSettings.EventPosition);
-                }
                 
+                _plane.dropPosition = position;
                 _plane.Spawn();
                 _plane.GetOrAddComponent<CargoComponent>().SetEvent(this);
             }
