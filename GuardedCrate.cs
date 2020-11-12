@@ -263,7 +263,6 @@ namespace Oxide.Plugins
             {
                 EventDuration = 800f,
                 EventName = "Low Level",
-                EventPosition = new Vector3(-821f, 21.5f, 302f),
                 NpcAggression = 120f,
                 NpcRadius = 15f,
                 NpcCount = 6,
