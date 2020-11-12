@@ -56,9 +56,6 @@ namespace Oxide.Plugins
         {
             [JsonProperty("Events (available events)")]
             public readonly List<EventSetting> Events = new List<EventSetting>();
-            
-            [JsonProperty("Positions (custom positions for the events to spawn)")]
-            public readonly List<Vector3> Positions = new List<Vector3>();
         }
         
         private class LootItem
@@ -123,6 +120,9 @@ namespace Oxide.Plugins
             
             [JsonProperty("CustomLoot (items to spawn in crate)")]
             public List<LootItem> CustomLoot = new List<LootItem>();
+            
+            [JsonProperty("CustomPositions (custom positions for the events to spawn)")]
+            public readonly List<Vector3> CustomPositions = new List<Vector3>();
         }
 
         private void LoadData()
@@ -342,7 +342,7 @@ namespace Oxide.Plugins
 
             CrateEvent crateEvent = new CrateEvent();
 
-            crateEvent.PreEvent(eventSettings, _stored.Positions.GetRandom());
+            crateEvent.PreEvent(eventSettings);
 
             if (player != null)
             {
@@ -370,20 +370,6 @@ namespace Oxide.Plugins
             }
         }
 
-        private void EventPos(BasePlayer player)
-        {
-            Vector3 pos = player.ServerPosition;
-            
-            if (!_stored.Positions.Contains(pos))
-            {
-                _stored.Positions.Add(pos);
-                
-                SaveData();
-            }
-            
-            player.ChatMessage(Lang("EventPos", player.UserIDString));
-        }
-        
         private IEnumerator DespawnRoutine()
         {
             for (int i = _crateEvents.Count - 1; i >= 0; i--)
@@ -432,11 +418,11 @@ namespace Oxide.Plugins
             private Timer _eventTimer;
             private EventSetting _eventSettings;
 
-            public void PreEvent(EventSetting eventSettings, Vector3 position)
+            public void PreEvent(EventSetting eventSettings)
             {
                 _eventSettings = eventSettings;
                 
-                SpawnPlane(position);
+                SpawnPlane();
 
                 _plugin.AddEvent(this);
             }
@@ -503,7 +489,7 @@ namespace Oxide.Plugins
                 StartDespawnTimer();
             }
 
-            private void SpawnPlane(Vector3 position)
+            private void SpawnPlane()
             {
                 _plane = GameManager.server.CreateEntity(PlanePrefab) as CargoPlane;
                 if (_plane == null)
@@ -511,7 +497,7 @@ namespace Oxide.Plugins
                     return;
                 }
                 
-                _plane.dropPosition = position;
+                _plane.dropPosition = _eventSettings.CustomPositions.GetRandom();
                 _plane.Spawn();
                 _plane.GetOrAddComponent<CargoComponent>().SetEvent(this);
             }
@@ -952,9 +938,6 @@ namespace Oxide.Plugins
                     break;
                 case "stop":
                     StopEvents(player);
-                    break;
-                case "pos":
-                    EventPos(player);
                     break;
                 default:
                     player.ChatMessage(Lang("InvalidSyntax", player.UserIDString));
