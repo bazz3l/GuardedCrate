@@ -11,7 +11,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.4.6")]
+    [Info("Guarded Crate", "Bazz3l", "1.4.7")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -44,8 +44,11 @@ namespace Oxide.Plugins
             [JsonProperty("AutoEventDuration (time until new event spawns)")]
             public float AutoEventDuration = 1800f;
             
-            [JsonProperty("EnableLock (locks crate to player or clans if enabled)")]
-            public bool EnableLock = true;
+            [JsonProperty("EnableLock (crate only lootable by the winner or the winners clan/team members)")]
+            public bool EnableLock = false;
+            
+            [JsonProperty("EnableMostKills (give the crate to the player with the most npc kills)")]
+            public bool EnableMostKills = false;
         }
 
         #endregion
@@ -201,8 +204,6 @@ namespace Oxide.Plugins
 
         private void OnServerInitialized()
         {
-            permission.RegisterPermission(UsePerm, this);
-
             RegisterCommands();
             RegisterHooks();
 
@@ -216,6 +217,8 @@ namespace Oxide.Plugins
 
         private void Init()
         {
+            permission.RegisterPermission(UsePerm, this);
+            
             _plugin = this;
             
             LoadData();
@@ -406,6 +409,7 @@ namespace Oxide.Plugins
 
         private class CrateEvent
         {
+            private readonly Dictionary<BasePlayer, int> _npcKills = new Dictionary<BasePlayer, int>();
             public readonly List<HTNPlayer> NpcPlayers = new List<HTNPlayer>();
             private MapMarkerGenericRadius _marker;
             private HackableLockedCrate _crate;
@@ -676,17 +680,48 @@ namespace Oxide.Plugins
                 npcList.Clear();
             }
             
-            private void LockCrateToPlayer(ulong userID)
+            private void AnnounceWinner(BasePlayer player)
             {
                 if (!IsValid(_crate))
                 {
                     return;
                 }
 
-                _crate.OwnerID = userID;
+                _crate.OwnerID = player.userID;
+                
+                Message("EventEnded", GetGrid(_position), player.displayName);
             }
 
             public bool Distance(Vector3 position) => Vector3Ex.Distance2D(position, _position) <= 20f;
+
+            private void LogPlayerKill(BasePlayer player)
+            {
+                if (player == null || player.IsNpc)
+                {
+                    return;
+                }
+
+                if (!_npcKills.ContainsKey(player))
+                {
+                    _npcKills[player] = 0;
+                }
+
+                _npcKills[player] += 1;
+            }
+
+            private BasePlayer GetWinner(BasePlayer player)
+            {
+                if (!_plugin._config.EnableMostKills)
+                {
+                    return player;
+                }
+
+                Dictionary<BasePlayer, int> winners = _npcKills
+                    .OrderByDescending(e => e.Value)
+                    .ToDictionary(x => x.Key, x => x.Value);
+
+                return winners.Keys.FirstOrDefault() ?? player;
+            }
 
             public void OnNPCDeath(HTNPlayer npc, BasePlayer player)
             {
@@ -695,18 +730,21 @@ namespace Oxide.Plugins
                     return;
                 }
                 
+                LogPlayerKill(player);
+                
                 if (NpcPlayers.Count > 0)
                 {
                     ResetDespawnTimer();
+
                     return;
                 }
 
                 if (player != null)
                 {
-                    LockCrateToPlayer(player.userID);
-                    
-                    Message("EventEnded", GetGrid(_position), player.displayName);
-                    
+                    BasePlayer winner = GetWinner(player);
+
+                    AnnounceWinner(winner);
+
                     StopEvent(true);
                 }
                 else
@@ -821,21 +859,38 @@ namespace Oxide.Plugins
         
         private bool OwnerOrInClan(ulong userID, ulong targetID)
         {
-            if (userID == targetID)
-            {
-                return true;
-            }
-
-            var playerClan = Clans?.Call<string>("GetClanOf", userID);
-            var targetClan = Clans?.Call<string>("GetClanOf", targetID);
-            if (!string.IsNullOrEmpty(targetClan) && !string.IsNullOrEmpty(playerClan) && playerClan == targetClan)
-            {
-                return true;
-            }
-            
-            return false;
+            return userID == targetID || SameClan(userID, targetID) || SameTeam(userID, targetID);
         }
         
+        private bool SameClan(ulong userID, ulong targetID)
+        {
+            string playerClan = Clans?.Call<string>("GetClanOf", userID);
+            string targetClan = Clans?.Call<string>("GetClanOf", targetID);
+            if (string.IsNullOrEmpty(targetClan) || string.IsNullOrEmpty(playerClan))
+            {
+                return false;
+            }
+
+            return playerClan == targetClan;
+        }
+
+        private bool SameTeam(ulong userID, ulong targetID)
+        {
+            if (!RelationshipManager.TeamsEnabled())
+            {
+                return false;
+            }
+            
+            RelationshipManager.PlayerTeam playerTeam = RelationshipManager.Instance.FindPlayersTeam(userID);
+            RelationshipManager.PlayerTeam targetTeam = RelationshipManager.Instance.FindPlayersTeam(targetID);
+            if (playerTeam == null || targetTeam == null)
+            {
+                return false;
+            }
+
+            return playerTeam.teamID == targetTeam.teamID;
+        }
+
         private static Vector3 PositionAround(Vector3 position, float radius, float angle)
         {
             position.x += radius * Mathf.Sin(angle * Mathf.Deg2Rad);
