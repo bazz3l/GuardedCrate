@@ -11,7 +11,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.4.7")]
+    [Info("Guarded Crate", "Bazz3l", "1.4.8")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -433,7 +433,6 @@ namespace Oxide.Plugins
                 _position = position;
 
                 SpawnCrate();
-                RefillLoot();
                 StartSpawnRoutine();
                 StartDespawnTimer();
 
@@ -527,6 +526,7 @@ namespace Oxide.Plugins
                 _crate.shouldDecay = false;
                 _crate.SetWasDropped();
                 _crate.Spawn();
+                _crate.Invoke(RefillLoot, 2f);
                 _crate.GetOrAddComponent<DropComponent>().SetDropSpeed(_eventSettings.DropSpeed);
 
                 _marker.SetParent(_crate);
@@ -679,8 +679,10 @@ namespace Oxide.Plugins
                 NpcPlayers.Clear();
                 npcList.Clear();
             }
-            
-            private void AnnounceWinner(BasePlayer player)
+
+            public bool Distance(Vector3 position) => Vector3Ex.Distance2D(position, _position) <= 20f;
+
+            private void AssignCrate(BasePlayer player)
             {
                 if (!IsValid(_crate))
                 {
@@ -688,13 +690,9 @@ namespace Oxide.Plugins
                 }
 
                 _crate.OwnerID = player.userID;
-                
-                Message("EventEnded", GetGrid(_position), player.displayName);
             }
-
-            public bool Distance(Vector3 position) => Vector3Ex.Distance2D(position, _position) <= 20f;
-
-            private void LogPlayerKill(BasePlayer player)
+            
+            private void LogNpcKill(BasePlayer player)
             {
                 if (player == null || player.IsNpc)
                 {
@@ -730,7 +728,7 @@ namespace Oxide.Plugins
                     return;
                 }
                 
-                LogPlayerKill(player);
+                LogNpcKill(player);
                 
                 if (NpcPlayers.Count > 0)
                 {
@@ -743,7 +741,9 @@ namespace Oxide.Plugins
                 {
                     BasePlayer winner = GetWinner(player);
 
-                    AnnounceWinner(winner);
+                    AssignCrate(winner);
+                    
+                    Message("EventEnded", GetGrid(_position), winner.displayName);
 
                     StopEvent(true);
                 }
@@ -786,7 +786,7 @@ namespace Oxide.Plugins
                 }
             }
 
-            public void SetEvent(CrateEvent crateEvent)
+            internal void SetEvent(CrateEvent crateEvent)
             {
                 _crateEvent = crateEvent;
             }
@@ -794,35 +794,19 @@ namespace Oxide.Plugins
 
         private class DropComponent : MonoBehaviour
         {
-            private Rigidbody _rbody;
             private BaseEntity _chute;
             private BaseEntity _crate;
-            private bool _hasLanded;
+            private Rigidbody _rb;
 
             private void Awake()
             {
                 _crate = GetComponent<BaseEntity>();
-                _rbody = GetComponent<Rigidbody>();
+                _rb = GetComponent<Rigidbody>();
 
-                SpawnChute();
+                AttachChute();
             }
 
-            private void FixedUpdate()
-            {
-                int size = Physics.OverlapSphereNonAlloc(transform.position, 1f, Vis.colBuffer, CollisionLayer);
-                if (size <= 0 || _hasLanded)
-                {
-                    return;
-                }
-                
-                _hasLanded = true;
-
-                RemoveParented();
-                    
-                Destroy(this);
-            }
-
-            private void SpawnChute()
+            private void AttachChute()
             {
                 _chute = GameManager.server.CreateEntity(ChutePrefab, transform.position, Quaternion.identity);
                 if (_chute == null)
@@ -830,24 +814,34 @@ namespace Oxide.Plugins
                     return;
                 }
                 
+                _chute.SetParent(_crate, "parachute_attach", false, false);
+                _chute.transform.localPosition = Vector3.zero;
+                _chute.transform.localRotation = Quaternion.identity;
                 _chute.enableSaving = false;
                 _chute.Spawn();
-                _chute.SetParent(_crate);
-                _chute.transform.localPosition = Vector3.zero;
-                _chute.SendNetworkUpdate();
+            }
+            
+            private void OnCollisionEnter(Collision collision)
+            {
+                if ((1 << collision.collider.gameObject.layer & 1084293393) > 0)
+                {
+                    RemoveParachute();
+                }
             }
 
-            private void RemoveParented()
+            private void RemoveParachute()
             {
                 if (IsValid(_chute))
                 {
                     _chute.Kill();
                 }
+                
+                Destroy(this);
             }
 
-            public void SetDropSpeed(float dropSpeed = 0.7f)
+            internal void SetDropSpeed(float dropSpeed = 0.7f)
             {
-                _rbody.drag = dropSpeed;
+                _rb.drag = dropSpeed;
             }
         }
 
@@ -866,6 +860,7 @@ namespace Oxide.Plugins
         {
             string playerClan = Clans?.Call<string>("GetClanOf", userID);
             string targetClan = Clans?.Call<string>("GetClanOf", targetID);
+            
             if (string.IsNullOrEmpty(targetClan) || string.IsNullOrEmpty(playerClan))
             {
                 return false;
@@ -883,6 +878,7 @@ namespace Oxide.Plugins
             
             RelationshipManager.PlayerTeam playerTeam = RelationshipManager.Instance.FindPlayersTeam(userID);
             RelationshipManager.PlayerTeam targetTeam = RelationshipManager.Instance.FindPlayersTeam(targetID);
+            
             if (playerTeam == null || targetTeam == null)
             {
                 return false;
