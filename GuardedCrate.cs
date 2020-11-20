@@ -11,7 +11,7 @@ using VLB;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.4.8")]
+    [Info("Guarded Crate", "Bazz3l", "1.4.9")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -26,7 +26,7 @@ namespace Oxide.Plugins
         private const string PlanePrefab = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
         private const string UsePerm = "guardedcrate.use";
         
-        private static readonly LayerMask CollisionLayer = LayerMask.GetMask("Water", "Tree",  "Debris", "Clutter",  "Default", "Resource", "Construction", "Terrain", "World", "Deployed");
+        private static readonly LayerMask RaycastLayers = LayerMask.GetMask("Terrain", "World", "Default", "Water", "Tree", "Debris", "Clutter", "Resource", "Construction", "Deployed");
         private readonly HashSet<CrateEvent> _crateEvents = new HashSet<CrateEvent>();
         private PluginConfig _config;
         private PluginData _stored;
@@ -49,6 +49,9 @@ namespace Oxide.Plugins
             
             [JsonProperty("EnableMostKills (give the crate to the player with the most npc kills)")]
             public bool EnableMostKills = false;
+            
+            [JsonProperty(PropertyName = "Chat Icon (SteamID64)")]
+            public ulong ChatIcon = 0;
         }
 
         #endregion
@@ -187,8 +190,6 @@ namespace Oxide.Plugins
                 {
                     throw new Exception();
                 }
-                
-                PrintToConsole($"New config created {Name}.json.");
             }
             catch
             {
@@ -393,10 +394,10 @@ namespace Oxide.Plugins
         private void OnAIDeath(HTNPlayer npc, BasePlayer player)
         {
             CrateEvent crateEvent = _crateEvents.FirstOrDefault(x => x.NpcPlayers.Contains(npc));
-
+                
             crateEvent?.OnNPCDeath(npc, player);
         }
-        
+
         private object OnCanBuild(BasePlayer player)
         {
             if (player != null && _crateEvents.FirstOrDefault(x => x.Distance(player.ServerPosition)) != null)
@@ -422,7 +423,7 @@ namespace Oxide.Plugins
             public void PreEvent(EventSetting eventSettings)
             {
                 _eventSettings = eventSettings;
-                
+
                 SpawnPlane();
 
                 _plugin.AddEvent(this);
@@ -436,7 +437,7 @@ namespace Oxide.Plugins
                 StartSpawnRoutine();
                 StartDespawnTimer();
 
-                Message("EventStarted", _eventSettings.EventName, GetGrid(_position), GetTime((int)_eventSettings.EventDuration));
+                _plugin.Broadcast("EventStarted", _eventSettings.EventName, GetGrid(_position), GetTime((int)_eventSettings.EventDuration));
             }
 
             public void StopEvent(bool completed = false)
@@ -617,8 +618,6 @@ namespace Oxide.Plugins
 
                     _crate.inventory.AddItem(item, UnityEngine.Random.Range(lootItem.MinAmount, lootItem.MaxAmount));
                 }
-                
-                lootItems.Clear();
             }
 
             private void DespawnCrate(bool completed = false)
@@ -633,15 +632,16 @@ namespace Oxide.Plugins
                     _crate.Kill();
                     return;
                 }
+                
+                _crate.shouldDecay = true;
 
                 if (_eventSettings.AutoHack)
                 {
                     _crate.hackSeconds = HackableLockedCrate.requiredHackSeconds - _eventSettings.AutoHackSeconds;
-                    _crate.StartHacking();                    
+                    _crate.StartHacking();
                 }
                 
-                _crate.shouldDecay = true;
-                _crate.RefreshDecay();                
+                _crate.RefreshDecay();
             }
             
             private void DespawnMarker()
@@ -743,13 +743,13 @@ namespace Oxide.Plugins
 
                     AssignCrate(winner);
                     
-                    Message("EventEnded", GetGrid(_position), winner.displayName);
+                    _plugin.Broadcast("EventEnded", GetGrid(_position), winner.displayName);
 
                     StopEvent(true);
                 }
                 else
                 {
-                    Message("EventClear", GetGrid(_position));
+                    _plugin.Broadcast("EventClear", GetGrid(_position));
                     
                     StopEvent();
                 }
@@ -892,14 +892,14 @@ namespace Oxide.Plugins
             position.x += radius * Mathf.Sin(angle * Mathf.Deg2Rad);
             position.z += radius * Mathf.Cos(angle * Mathf.Deg2Rad);
 
-            RaycastHit hit;
+            RaycastHit rayHit;
             
-            if (!Physics.Raycast(position, Vector3.down, out hit, float.PositiveInfinity, CollisionLayer))
+            if (!Physics.Raycast(position, Vector3.down, out rayHit, float.PositiveInfinity, RaycastLayers, QueryTriggerInteraction.Collide))
             {
                 return Vector3.zero;
             }
 
-            return hit.point;
+            return rayHit.point + Vector3.up * 0.5f;
         }
 
         private static string GetGrid(Vector3 position)
@@ -920,11 +920,24 @@ namespace Oxide.Plugins
             return color;
         }
 
-        private static string GetTime(int secs)
+        private static string GetTime(int seconds)
         {
-            TimeSpan t = TimeSpan.FromSeconds(secs);
+            TimeSpan timeSpan = TimeSpan.FromSeconds(seconds);
+            int days = timeSpan.Days;
+            int hours = timeSpan.Hours;
+            int mins = timeSpan.Minutes;
+            int secs = timeSpan.Seconds;
+
+            if (days > 0)
+                return $"{days}d:{hours}h:{mins}m:{secs}s";
             
-            return string.Format("{0:D2}h:{1:D2}m:{2:D2}s", t.Hours, t.Minutes, t.Seconds);
+            if (hours > 0)
+                return $"{hours}h:{mins}m:{secs}s";
+            
+            if (mins > 0)
+                return $"{mins}m:{secs}s";
+            
+            return $"{secs}s";
         }
         
         private static void GiveInventory(HTNPlayer npc, string kit, bool giveKit)
@@ -957,8 +970,10 @@ namespace Oxide.Plugins
 
             return true;
         }
+        
+        private void Message(BasePlayer player, string message) => Player.Message(player, message, _config.ChatIcon);
 
-        private static void Message(string key, params object[] args) => _plugin?.PrintToChat(_plugin.Lang(key, null, args));
+        private void Broadcast(string key, params object[] args) => Server.Broadcast(Lang(key, null, args), _config.ChatIcon);
 
         #endregion
 
