@@ -445,12 +445,12 @@ namespace Oxide.Plugins
             public void StartEvent(Vector3 position)
             {
                 _position = position;
-
+                
                 SpawnCrate();
                 StartSpawnRoutine();
                 StartDespawnTimer();
 
-                _plugin.Broadcast("EventStarted", _eventSettings.EventName, GetGrid(_position), GetTime((int)_eventSettings.EventDuration));
+                _plugin.Broadcast("EventStarted", _eventSettings.EventName, GetGrid(position), GetTime((int)_eventSettings.EventDuration));
             }
 
             public void StopEvent(bool completed = false)
@@ -582,11 +582,16 @@ namespace Oxide.Plugins
             {
                 for (int i = 0; i < _eventSettings.NpcCount; i++)
                 {
-                    Vector3 position = PositionAround(_position, 5f, (360 / _eventSettings.NpcCount * i));
-
+                    Vector3 position = GetPositionAround(_position, 5f, 300f / _eventSettings.NpcCount * i);
+                    
+                    if (position == Vector3.zero)
+                    {
+                        continue;
+                    }
+                    
                     SpawnNpc(position, Quaternion.LookRotation(position - _position));
                     
-                    yield return new WaitForSeconds(0.75f);
+                    yield return new WaitForSeconds(0.25f);
                 }
 
                 yield return null;
@@ -888,7 +893,9 @@ namespace Oxide.Plugins
 
         private bool OwnerOrInClan(ulong userID, ulong targetID)
         {
-            return userID == targetID || SameClan(userID, targetID) || SameTeam(userID, targetID);
+            return userID == targetID 
+                   || SameClan(userID, targetID) 
+                   || SameTeam(userID, targetID);
         }
         
         private bool SameClan(ulong userID, ulong targetID)
@@ -922,19 +929,20 @@ namespace Oxide.Plugins
             return playerTeam.teamID == targetTeam.teamID;
         }
 
-        private static Vector3 PositionAround(Vector3 position, float radius, float angle)
+        private static Vector3 GetPositionAround(Vector3 position, float radius, float angle)
         {
             position.x += radius * Mathf.Sin(angle * Mathf.Deg2Rad);
             position.z += radius * Mathf.Cos(angle * Mathf.Deg2Rad);
+            position.y = TerrainMeta.HeightMap.GetHeight(position);
 
-            RaycastHit rayHit;
+            RaycastHit hit;
             
-            if (!Physics.Raycast(position, Vector3.down, out rayHit, float.PositiveInfinity, RaycastLayers, QueryTriggerInteraction.Collide))
+            if (!Physics.Raycast(position + Vector3.up * 100f, Vector3.down, out hit, float.PositiveInfinity, RaycastLayers, QueryTriggerInteraction.Collide))
             {
                 return Vector3.zero;
             }
-
-            return rayHit.point + Vector3.up * 0.5f;
+            
+            return position;
         }
 
         private static string GetGrid(Vector3 position)
@@ -1013,8 +1021,6 @@ namespace Oxide.Plugins
 
             return true;
         }
-        
-        private void Message(BasePlayer player, string message) => Player.Message(player, message, _config.ChatIcon);
 
         private void Broadcast(string key, params object[] args) => Server.Broadcast(Lang(key, null, args), _config.ChatIcon);
 
