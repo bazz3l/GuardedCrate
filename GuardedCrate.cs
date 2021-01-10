@@ -137,7 +137,7 @@ namespace Oxide.Plugins
                 
                 if (_stored == null)
                 {
-                    throw new Exception();
+                    throw new JsonException();
                 }
             }
             catch
@@ -189,7 +189,7 @@ namespace Oxide.Plugins
                 
                 if (_config == null)
                 {
-                    throw new Exception();
+                    throw new JsonException();
                 }
             }
             catch
@@ -202,7 +202,7 @@ namespace Oxide.Plugins
             SaveConfig();
         }
         
-        protected override void SaveConfig() => Config.WriteObject(_config);
+        protected override void SaveConfig() => Config.WriteObject(_config, true);
 
         private void OnServerInitialized()
         {
