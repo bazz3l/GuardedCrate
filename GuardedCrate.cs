@@ -10,7 +10,7 @@ using Random = UnityEngine.Random;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.4.8")]
+    [Info("Guarded Crate", "Bazz3l", "1.4.9")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : RustPlugin
     {
@@ -551,13 +551,10 @@ namespace Oxide.Plugins
                 if (npc == null) return;
 
                 npc.enableSaving = false;
-                npc.RadioEffect = new GameObjectRef();
-                npc.DeathEffect = new GameObjectRef();
-                npc.displayName = _settings.NpcName;  
                 npc.startHealth = _settings.NpcHealth;
-                npc.InitializeHealth(_settings.NpcHealth, _settings.NpcHealth);
                 npc.Spawn();
-                
+                npc.displayName = _settings.NpcName;
+                npc.InitializeHealth(_settings.NpcHealth, _settings.NpcHealth);
                 npc.Stats.VisionRange = _settings.NpcAggression + 3f;
                 npc.Stats.DeaggroRange = _settings.NpcAggression + 2f;
                 npc.Stats.AggressionRange = _settings.NpcAggression + 1f;
