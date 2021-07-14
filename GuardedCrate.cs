@@ -539,7 +539,7 @@ namespace Oxide.Plugins
 
                 if (size.z < 50f)
                 {
-                    size.z = 50f;
+                    size.z = 120f;
                 }
 
                 Size = size;
