@@ -236,6 +236,8 @@ namespace Oxide.Plugins
         {
             AddCovalenceCommand(_config.Command, nameof(GCCommand), USE_PERM);
 
+            LoadMonuments();
+
             if (_config.EnableAutoStart)
             {
                 timer.Every(_config.EventDuration, () => StartEvent());
