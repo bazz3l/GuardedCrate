@@ -40,7 +40,7 @@ namespace Oxide.Plugins
         
         #region Config
         
-        protected override void LoadDefaultConfig() => _config = PluginConfig.DefaultConfig();
+        protected override void LoadDefaultConfig() => _config = new PluginConfig();
 
         protected override void LoadConfig()
         {
@@ -74,22 +74,13 @@ namespace Oxide.Plugins
         private class PluginConfig : SerializableConfiguration
         {
             [JsonProperty("EnableAutoStart (enables events to spawn automatically)")]
-            public bool EnableAutoStart;
+            public bool EnableAutoStart = true;
             
             [JsonProperty("EventDuration (time between event spawns)")]
-            public float EventDuration;
+            public float EventDuration = 1800f;
             
             [JsonProperty("Command (command name)")]
             public string[] Command = { "gc" };
-
-            public static PluginConfig DefaultConfig()
-            {
-                return new PluginConfig
-                {
-                    EnableAutoStart = true,
-                    EventDuration = 1800f
-                };
-            }
         }
 
         private class SerializableConfiguration
