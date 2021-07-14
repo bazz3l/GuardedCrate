@@ -700,7 +700,7 @@ namespace Oxide.Plugins
 
             private void SpawnCrate()
             {
-                _crate = (HackableLockedCrate) GameManager.server.CreateEntity(CRATE_PREFAB, _position,
+                _crate = (HackableLockedCrate) GameManager.server.CreateEntity(CRATE_PREFAB, _position + Vector3.up * 100f,
                     Quaternion.identity);
                 _crate.enableSaving = false;
                 _crate.shouldDecay = false;
@@ -1057,7 +1057,7 @@ namespace Oxide.Plugins
             private void Awake()
             {
                 _crate = gameObject.GetComponent<BaseEntity>();
-                _crate.GetComponent<Rigidbody>().drag = 0.5f;
+                _crate.GetComponent<Rigidbody>().drag = 0.9f;
 
                 SpawnChute();
             }
