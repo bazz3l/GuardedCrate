@@ -712,7 +712,7 @@ namespace Oxide.Plugins
 
             private Vector3 FindPointOnNavmesh(Vector3 position, float radius = 8f)
             {
-                int tries = 100;
+                int num = 100;
                 
                 NavMeshHit hit;
                 Vector3 vector;
@@ -725,7 +725,7 @@ namespace Oxide.Plugins
                     {
                         return GetSpawnHeight(hit.position);
                     }
-                } while (--tries > 0);
+                } while (--num > 0);
 
                 return Vector3.zero;
             }
@@ -751,7 +751,7 @@ namespace Oxide.Plugins
 
             private List<LootItem> GenerateLoot()
             {
-                int maxLoopLimit = 1000;
+                int num = 100;
 
                 List<LootItem> lootItems = new List<LootItem>();
 
@@ -763,7 +763,7 @@ namespace Oxide.Plugins
                         
                     lootItems.Add(lootItem);                    
                 } 
-                while (lootItems.Count < _settings.MaxLootItems && maxLoopLimit-- > 0);
+                while (lootItems.Count < _settings.MaxLootItems && --num > 0);
 
                 return lootItems;
             }
