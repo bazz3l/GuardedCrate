@@ -1004,10 +1004,6 @@ namespace Oxide.Plugins
             {
                 _crate = gameObject.GetComponent<BaseEntity>();
                 _crate.GetComponent<Rigidbody>().drag = 0.5f;
-                
-                SphereCollider collider = gameObject.AddComponent<SphereCollider>();
-                collider.radius = 10f;
-                collider.isTrigger = true;
 
                 SpawnChute();
             }
