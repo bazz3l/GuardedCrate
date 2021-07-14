@@ -18,7 +18,7 @@ namespace Oxide.Plugins
     public class GuardedCrate : CovalencePlugin
     {
         #region Fields
-        
+
         private const string USE_PERM = "guardedcrate.use";
 
         private const string CRATE_PREFAB = "assets/prefabs/deployable/chinooklockedcrate/codelockedhackablecrate.prefab";
@@ -27,71 +27,80 @@ namespace Oxide.Plugins
         private const string NPC_PREFAB = "assets/prefabs/npc/scientist/scientist.prefab";
         private const string PLANE_PREFAB = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
 
-        private readonly List<int> _blockedLayers = new List<int> { (int)Layer.Water, (int)Layer.Construction, (int)Layer.Trigger, (int)Layer.Prevent_Building, (int)Layer.Deployed, (int)Layer.Tree, (int)Layer.Clutter };
+        private readonly List<int> _blockedLayers = new List<int>
+        {
+            (int) Layer.Water, (int) Layer.Construction, (int) Layer.Trigger, (int) Layer.Prevent_Building,
+            (int) Layer.Deployed, (int) Layer.Tree, (int) Layer.Clutter
+        };
+
         private readonly int _obstructionLayer = LayerMask.GetMask("Player (Server)", "Construction", "Deployed");
         private readonly int _heightLayer = LayerMask.GetMask("Terrain", "World", "Default", "Construction", "Deployed", "Clutter");
         private readonly Dictionary<BaseEntity, CrateEvent> _entities = new Dictionary<BaseEntity, CrateEvent>();
         private readonly HashSet<CrateEvent> _events = new HashSet<CrateEvent>();
+        private readonly List<Monument> _monuments = new List<Monument>();
         private readonly SpawnFilter _filter = new SpawnFilter();
         private PluginConfig _config;
         private PluginData _stored;
 
         #endregion
-        
+
         #region Config
-        
+
         protected override void LoadDefaultConfig() => _config = new PluginConfig();
 
         protected override void LoadConfig()
         {
             base.LoadConfig();
-            
+
             try
             {
                 _config = Config.ReadObject<PluginConfig>();
-                
+
                 if (_config == null)
                 {
                     throw new Exception();
                 }
-                
-                if (_config.ToDictionary().Keys.SequenceEqual(Config.ToDictionary(x => x.Key, x => x.Value).Keys)) return;
-                
+
+                if (_config.ToDictionary().Keys
+                    .SequenceEqual(Config.ToDictionary(x => x.Key, x => x.Value).Keys)) return;
+
                 PrintWarning("Loaded updated config.");
-                    
+
                 SaveConfig();
             }
             catch
             {
-                PrintError("The configuration file contains an error and has been replaced with a default config.\n" + "The error configuration file was saved in the .jsonError extension");
-                
+                PrintError("The configuration file contains an error and has been replaced with a default config.\n" +
+                           "The error configuration file was saved in the .jsonError extension");
+
                 LoadDefaultConfig();
             }
         }
-        
-        protected override void SaveConfig() => Config.WriteObject(_config);    
-        
+
+        protected override void SaveConfig() => Config.WriteObject(_config);
+
         private class PluginConfig : SerializableConfiguration
         {
             [JsonProperty("EnableAutoStart (enables events to spawn automatically)")]
             public bool EnableAutoStart = true;
-            
+
             [JsonProperty("EventDuration (time between event spawns)")]
             public float EventDuration = 1800f;
-            
+
             [JsonProperty("Command (command name)")]
-            public string[] Command = { "gc" };
+            public string[] Command = {"gc"};
         }
 
         private class SerializableConfiguration
         {
             public string ToJson() => JsonConvert.SerializeObject(this);
 
-            public Dictionary<string, object> ToDictionary() => JsonConvert.DeserializeObject<Dictionary<string, object>>(ToJson());
+            public Dictionary<string, object> ToDictionary() =>
+                JsonConvert.DeserializeObject<Dictionary<string, object>>(ToJson());
         }
 
         #endregion
-
+        
         #region Storage
 
         private class PluginData
@@ -101,7 +110,7 @@ namespace Oxide.Plugins
             public static PluginData LoadData()
             {
                 PluginData data;
-                
+
                 try
                 {
                     data = Interface.Oxide.DataFileSystem.ReadObject<PluginData>("GuardedCrate");
@@ -115,7 +124,7 @@ namespace Oxide.Plugins
                 {
                     data = new PluginData();
                 }
-                
+
                 return data;
             }
 
@@ -123,58 +132,62 @@ namespace Oxide.Plugins
             {
                 Interface.Oxide.DataFileSystem.WriteObject("GuardedCrate", this);
             }
+
+            public EventSetting FindEvent(string name)
+            {
+                return Events.FirstOrDefault(x => x.EventName.Equals(name, StringComparison.OrdinalIgnoreCase));
+            }
         }
-        
+
         private class EventSetting
         {
             [JsonProperty("EventDuration (duration the event will be active for)")]
             public float EventDuration;
-            
+
             [JsonProperty("EventName (event name)")]
             public string EventName;
 
             [JsonProperty("AutoHack (enables auto hacking of crates when an event is finished)")]
             public bool AutoHack = true;
-            
+
             [JsonProperty("AutoHackSeconds (countdown for crate to unlock in seconds)")]
             public float AutoHackSeconds = 60f;
 
             [JsonProperty("UseKits (use custom kits plugin)")]
             public bool UseKits = false;
-            
-            [JsonProperty("Kits (custom kits)")]
-            public List<string> Kits = new List<string>();
-            
+
+            [JsonProperty("Kits (custom kits)")] public List<string> Kits = new List<string>();
+
             [JsonProperty("NpcName (custom name)")]
             public string NpcName;
-            
+
             [JsonProperty("NpcCount (number of guards to spawn)")]
             public int NpcCount;
-            
+
             [JsonProperty("NpcHealth (health guards spawn with)")]
             public float NpcHealth;
-            
+
             [JsonProperty("NpcRadius (max distance guards will roam)")]
             public float NpcRadius;
-            
+
             [JsonProperty("NpcAggression (max aggression distance guards will target)")]
             public float NpcAggression;
 
             [JsonProperty("MarkerColor (marker color)")]
             public string MarkerColor;
-            
+
             [JsonProperty("MarkerBorderColor (marker border color)")]
             public string MarkerBorderColor;
-            
+
             [JsonProperty("MarkerOpacity (marker opacity)")]
             public float MarkerOpacity = 1f;
 
             [JsonProperty("UseLoot (use custom loot table)")]
             public bool UseLoot = false;
-            
+
             [JsonProperty("MaxLootItems (max items to spawn in crate)")]
             public int MaxLootItems = 6;
-            
+
             [JsonProperty("CustomLoot (items to spawn in crate)")]
             public List<LootItem> CustomLoot = new List<LootItem>();
         }
@@ -189,43 +202,52 @@ namespace Oxide.Plugins
         }
 
         #endregion
-        
+
         #region Lang
 
         protected override void LoadDefaultMessages()
         {
-            lang.RegisterMessages (new Dictionary<string, string>
+            lang.RegisterMessages(new Dictionary<string, string>
             {
-                { "InvalidSyntax", "gc start|stop" },
-                { "Permission", "No permission" },
-                { "CreateEvent", "<color=#DC143C>Guarded Crate</color>: New event starting stand by." },
-                { "CleanEvents", "<color=#DC143C>Guarded Crate</color>: Cleaning up events." },
-                { "EventStarted", "<color=#DC143C>Guarded Crate</color>: <color=#EDDf45>{0}</color>, event started at <color=#EDDf45>{1}</color>, eliminate the guards before they leave in <color=#EDDf45>{2}</color>." },
-                { "EventEnded", "<color=#DC143C>Guarded Crate</color>: The event ended at the location <color=#EDDf45>{0}</color>, <color=#EDDf45>{1}</color> cleared the event!" },
-                { "EventClear", "<color=#DC143C>Guarded Crate</color>: The event ended at <color=#EDDf45>{0}</color>; You were not fast enough; better luck next time!" },
+                {"InvalidSyntax", "/gc start <name>\nedit <name> loot|duration\n/gc stop"},
+                {"Permission", "No permission"},
+                {"CreateEvent", "<color=#DC143C>Guarded Crate</color>: New event starting stand by."},
+                {"CleanEvents", "<color=#DC143C>Guarded Crate</color>: Cleaning up events."},
+                {
+                    "EventStarted",
+                    "<color=#DC143C>Guarded Crate</color>: <color=#EDDf45>{0}</color>, event started at <color=#EDDf45>{1}</color>, eliminate the guards before they leave in <color=#EDDf45>{2}</color>."
+                },
+                {
+                    "EventEnded",
+                    "<color=#DC143C>Guarded Crate</color>: The event ended at the location <color=#EDDf45>{0}</color>, <color=#EDDf45>{1}</color> cleared the event!"
+                },
+                {
+                    "EventClear",
+                    "<color=#DC143C>Guarded Crate</color>: The event ended at <color=#EDDf45>{0}</color>; You were not fast enough; better luck next time!"
+                },
             }, this);
         }
 
         #endregion
-        
+
         #region Oxide
 
         private void OnServerInitialized()
         {
             AddCovalenceCommand(_config.Command, nameof(GCCommand), USE_PERM);
-            
+
             if (_config.EnableAutoStart)
             {
                 timer.Every(_config.EventDuration, () => StartEvent());
             }
-            
+
             timer.Every(30f, RefreshEvents);
         }
 
         private void Init()
         {
             _stored = PluginData.LoadData();
-            
+
             RegisterDefaults();
         }
 
@@ -234,18 +256,18 @@ namespace Oxide.Plugins
             StopEvents();
         }
 
-        private void OnEntityDeath(NPCPlayerApex npc, HitInfo hitInfo) => 
+        private void OnEntityDeath(NPCPlayerApex npc, HitInfo hitInfo) =>
             FindEntityEvent(npc)
                 ?.OnNPCDeath(npc, hitInfo?.InitiatorPlayer);
 
-        private void OnEntityKill(NPCPlayerApex npc) => 
+        private void OnEntityKill(NPCPlayerApex npc) =>
             FindEntityEvent(npc)
                 ?.OnNPCDeath(npc, null);
 
-        private void OnCrateLanded(HackableLockedCrate crate) => 
+        private void OnCrateLanded(HackableLockedCrate crate) =>
             FindEntityEvent(crate)
                 ?.StartRoutine();
-        
+
         private object CanHackCrate(BasePlayer player, HackableLockedCrate crate)
         {
             return FindEntityEvent(crate)
@@ -253,7 +275,7 @@ namespace Oxide.Plugins
         }
 
         #endregion
-        
+
         #region Core
 
         #region Register Defaults
@@ -268,7 +290,7 @@ namespace Oxide.Plugins
             _stored.Events.Add(new EventSetting
             {
                 EventDuration = 800f,
-                EventName = "Low Level",
+                EventName = "Easy",
                 NpcAggression = 120f,
                 NpcRadius = 15f,
                 NpcCount = 6,
@@ -278,11 +300,11 @@ namespace Oxide.Plugins
                 MarkerBorderColor = "#000000",
                 MarkerOpacity = 0.9f
             });
-            
+
             _stored.Events.Add(new EventSetting
             {
                 EventDuration = 800f,
-                EventName = "Medium Level",
+                EventName = "Medium",
                 NpcAggression = 120f,
                 NpcRadius = 15f,
                 NpcCount = 8,
@@ -292,27 +314,29 @@ namespace Oxide.Plugins
                 MarkerBorderColor = "#000000",
                 MarkerOpacity = 0.9f
             });
-            
-            _stored.Events.Add(new EventSetting {
+
+            _stored.Events.Add(new EventSetting
+            {
                 EventDuration = 1800f,
-                EventName = "Hard Level",
+                EventName = "Hard",
                 NpcAggression = 150f,
                 NpcRadius = 50f,
                 NpcCount = 10,
-                NpcHealth = 200, 
+                NpcHealth = 200,
                 NpcName = "Hard Guard",
                 MarkerColor = "#3060d9",
                 MarkerBorderColor = "#000000",
                 MarkerOpacity = 0.9f
             });
-            
-            _stored.Events.Add(new EventSetting {
+
+            _stored.Events.Add(new EventSetting
+            {
                 EventDuration = 1800f,
-                EventName = "Elite Level",
+                EventName = "Elite",
                 NpcAggression = 180f,
                 NpcRadius = 50f,
                 NpcCount = 12,
-                NpcHealth = 350, 
+                NpcHealth = 350,
                 NpcName = "Elite Guard",
                 MarkerColor = "#e81728",
                 MarkerBorderColor = "#000000",
@@ -326,27 +350,13 @@ namespace Oxide.Plugins
 
         #region Management
 
-        private void StartEvent(IPlayer player, string[] args)
-        {
-            StartEvent(string.Join(" ", args));
-
-            player.Message(Lang("CreateEvent", player.Id));
-        }
-        
         private void StartEvent(string name = null)
         {
-            EventSetting settings = _stored.Events.FirstOrDefault(x => x.EventName.Equals(name, StringComparison.OrdinalIgnoreCase));
-            
+            EventSetting settings = _stored.FindEvent(name);
+
             new CrateEvent(this).SetupEvent(settings ?? _stored.Events.GetRandom());
         }
 
-        private void StopEvents(IPlayer player)
-        {
-            StopEvents();
-
-            player.Message(Lang("CleanEvents", player.Id));
-        }
-        
         private void StopEvents()
         {
             CommunityEntity.ServerInstance.StartCoroutine(DespawnRoutine());
@@ -357,10 +367,10 @@ namespace Oxide.Plugins
             for (int i = 0; i < _events.Count; i++)
             {
                 CrateEvent crateEvent = _events.ElementAt(i);
-                
+
                 crateEvent?.RefreshEvent();
             }
-        }        
+        }
 
         #endregion
 
@@ -371,17 +381,17 @@ namespace Oxide.Plugins
             for (int i = _events.Count - 1; i >= 0; i--)
             {
                 CrateEvent crateEvent = _events.ElementAt(i);
-                
+
                 crateEvent?.StopEvent();
 
                 yield return CoroutineEx.waitForSeconds(0.25f);
             }
         }
-        
+
         #endregion
 
         #region Cache
-        
+
         private CrateEvent FindEntityEvent(BaseEntity entity)
         {
             CrateEvent crateEvent;
@@ -393,7 +403,7 @@ namespace Oxide.Plugins
         {
             _entities.Add(entity, crateEvent);
         }
-        
+
         private void DelEntity(BaseEntity entity)
         {
             _entities.Remove(entity);
@@ -407,7 +417,7 @@ namespace Oxide.Plugins
         private void DelEvent(CrateEvent crateEvent)
         {
             _events.Remove(crateEvent);
-        }        
+        }
 
         #endregion
 
@@ -416,14 +426,13 @@ namespace Oxide.Plugins
         private Vector3 GetRandomPosition()
         {
             Vector3 vector;
-            
+
             float num = 100f;
-            
+
             do
             {
                 vector = ValidPosition(FindNewPosition());
-            }
-            while (vector == Vector3.zero && --num > 0f);
+            } while (vector == Vector3.zero && --num > 0f);
 
             return vector;
         }
@@ -432,24 +441,23 @@ namespace Oxide.Plugins
         {
             Vector3 vector;
 
-            float num = 100f; 
+            float num = 100f;
             float x = TerrainMeta.Size.x / 3f;
-            
+
             do
             {
                 vector = Vector3Ex.Range(-x, x);
-            }
-            while (_filter.GetFactor(vector) == 0f && --num > 0f);
-            
+            } while (_filter.GetFactor(vector) == 0f && --num > 0f);
+
             vector.y = 0f;
-            
+
             return vector;
         }
 
         private Vector3 ValidPosition(Vector3 position)
         {
             RaycastHit hit;
-            
+
             position.y += 200f;
 
             if (!Physics.Raycast(position, Vector3.down, out hit, position.y, _heightLayer,
@@ -465,25 +473,75 @@ namespace Oxide.Plugins
 
             position.y = Mathf.Max(hit.point.y, TerrainMeta.HeightMap.GetHeight(position));
 
+            if (NearMonument(position))
+            {
+                return Vector3.zero;
+            }
+
             if (WaterLevel.GetWaterDepth(position) > 0.1f)
             {
                 return Vector3.zero;
             }
-            
+
             return !IsLayerBlocked(position, 25f, _obstructionLayer) ? position : Vector3.zero;
         }
-        
+
         private bool IsLayerBlocked(Vector3 position, float radius, int mask)
         {
             List<Collider> colliders = Facepunch.Pool.GetList<Collider>();
-            
+
             Vis.Colliders(position, radius, colliders, mask, QueryTriggerInteraction.Ignore);
 
             bool blocked = colliders.Count > 0;
-            
+
             Facepunch.Pool.FreeList(ref colliders);
 
             return blocked;
+        }
+
+        #endregion
+
+        #region Monument
+
+        private void LoadMonuments()
+        {
+            foreach (MonumentInfo monument in UnityEngine.Object.FindObjectsOfType<MonumentInfo>())
+            {
+                _monuments.Add(new Monument(monument));
+            }
+        }
+        
+        private bool NearMonument(Vector3 position)
+        {
+            foreach (Monument monument in _monuments)
+            {
+                if (Vector3.Distance(position, monument.Position) < monument.Size.z)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        
+        private class Monument
+        {
+            public Vector3 Position;
+            public Vector3 Size;
+
+            public Monument(MonumentInfo monumentInfo)
+            {
+                Position = monumentInfo.transform.position;
+
+                Vector3 size = monumentInfo.Bounds.extents;
+
+                if (size.z < 50f)
+                {
+                    size.z = 50f;
+                }
+
+                Size = size;
+            }
         }
 
         #endregion
@@ -494,7 +552,7 @@ namespace Oxide.Plugins
 
             private readonly HashSet<NPCPlayerApex> _players = new HashSet<NPCPlayerApex>();
             private readonly HashSet<string> _blocked = new HashSet<string>();
-            
+
             private MapMarkerGenericRadius _marker;
             private HackableLockedCrate _crate;
             private Coroutine _coroutine;
@@ -510,7 +568,7 @@ namespace Oxide.Plugins
             {
                 _plugin = plugin;
             }
-            
+
             #region State Management
 
             public void SetupEvent(EventSetting settings)
@@ -524,7 +582,7 @@ namespace Oxide.Plugins
                 }
 
                 SpawnPlane();
-                
+
                 _plugin?.AddEvent(this);
             }
 
@@ -534,13 +592,14 @@ namespace Oxide.Plugins
                 SpawnCrate();
                 ResetTimer();
 
-                _plugin.MessageAll("EventStarted", _settings.EventName, GetGrid(_position), GetTime((int)_settings.EventDuration));
+                _plugin.MessageAll("EventStarted", _settings.EventName, GetGrid(_position),
+                    GetTime((int) _settings.EventDuration));
             }
 
             public void StopEvent(bool completed = false)
             {
                 _timer?.Destroy();
-                
+
                 StopRoutine();
                 DespawnPlane();
                 DespawnCrate(completed);
@@ -555,9 +614,9 @@ namespace Oxide.Plugins
                 {
                     return;
                 }
-                
+
                 _marker.SendUpdate();
-            }            
+            }
 
             #endregion
 
@@ -589,13 +648,13 @@ namespace Oxide.Plugins
             }
 
             #endregion
-            
+
             #region Cache
 
             void CacheAdd(NPCPlayerApex player)
             {
                 _players.Add(player);
-                
+
                 _plugin.AddEntity(player, this);
             }
 
@@ -621,25 +680,26 @@ namespace Oxide.Plugins
             #endregion
 
             #region Marker
-            
+
             private void SpawnMarker()
             {
                 _marker = (MapMarkerGenericRadius) GameManager.server.CreateEntity(MARKER_PREFAB, _position);
                 _marker.enableSaving = false;
                 _marker.color1 = GetColor(_settings.MarkerColor);
                 _marker.color2 = GetColor(_settings.MarkerBorderColor);
-                _marker.alpha  = _settings.MarkerOpacity;
+                _marker.alpha = _settings.MarkerOpacity;
                 _marker.radius = 0.5f;
                 _marker.Spawn();
             }
 
             #endregion
-            
+
             #region Crate
 
             private void SpawnCrate()
             {
-                _crate = (HackableLockedCrate) GameManager.server.CreateEntity(CRATE_PREFAB, _position, Quaternion.identity);
+                _crate = (HackableLockedCrate) GameManager.server.CreateEntity(CRATE_PREFAB, _position,
+                    Quaternion.identity);
                 _crate.enableSaving = false;
                 _crate.shouldDecay = false;
                 _crate.Spawn();
@@ -648,14 +708,14 @@ namespace Oxide.Plugins
                 _marker.SetParent(_crate);
                 _marker.transform.localPosition = Vector3.zero;
                 _marker.SendUpdate();
-                
+
                 RefillCrate();
 
                 _plugin.AddEntity(_crate, this);
             }
 
             #endregion
-            
+
             #region AI
 
             private IEnumerator SpawnAI()
@@ -667,11 +727,11 @@ namespace Oxide.Plugins
                     if (position == Vector3.zero) continue;
 
                     SpawnNpc(position, Quaternion.LookRotation(position - _position));
-                    
+
                     yield return CoroutineEx.waitForSeconds(0.25f);
                 }
             }
-            
+
             private void SpawnNpc(Vector3 position, Quaternion rotation)
             {
                 NPCPlayerApex npc = (NPCPlayerApex) GameManager.server.CreateEntity(NPC_PREFAB, position, rotation);
@@ -692,25 +752,25 @@ namespace Oxide.Plugins
                 npc.Stats.Defensiveness = 1f;
                 npc.Stats.OnlyAggroMarkedTargets = true;
                 npc.InitFacts();
-                
+
                 npc.gameObject.AddComponent<NavigationComponent>()
                     ?.SetDestination(position);
-                
+
                 CacheAdd(npc);
-                
+
                 GiveKit(npc, _settings.Kits.GetRandom(), _settings.UseKits);
             }
 
             private Vector3 FindPointOnNavmesh(Vector3 position, float radius = 8f)
             {
                 int num = 100;
-                
+
                 NavMeshHit hit;
                 Vector3 vector;
 
                 do
                 {
-                    vector  = position + Random.insideUnitSphere * (radius * 0.9f);
+                    vector = position + Random.insideUnitSphere * (radius * 0.9f);
 
                     if (NavMesh.SamplePosition(vector, out hit, radius, 1))
                     {
@@ -725,17 +785,18 @@ namespace Oxide.Plugins
             {
                 float y = TerrainMeta.HeightMap.GetHeight(target);
                 float p = TerrainMeta.HighestPoint.y + 250f;
-                
+
                 RaycastHit hit;
 
-                if (Physics.Raycast(new Vector3(target.x, p, target.z), Vector3.down, out hit, target.y + p, Layers.Mask.World, QueryTriggerInteraction.Ignore))
+                if (Physics.Raycast(new Vector3(target.x, p, target.z), Vector3.down, out hit, target.y + p,
+                    Layers.Mask.World, QueryTriggerInteraction.Ignore))
                 {
                     y = Mathf.Max(y, hit.point.y);
                 }
 
                 return new Vector3(target.x, y, target.z);
             }
-            
+
             #endregion
 
             #region Loot
@@ -751,10 +812,9 @@ namespace Oxide.Plugins
                     LootItem lootItem = _settings.CustomLoot.GetRandom();
 
                     if (lootItems.Contains(lootItem)) continue;
-                        
-                    lootItems.Add(lootItem);                    
-                } 
-                while (lootItems.Count < _settings.MaxLootItems && --num > 0);
+
+                    lootItems.Add(lootItem);
+                } while (lootItems.Count < _settings.MaxLootItems && --num > 0);
 
                 return lootItems;
             }
@@ -767,7 +827,7 @@ namespace Oxide.Plugins
                 }
 
                 List<LootItem> lootItems = GenerateLoot();
-                
+
                 _crate.inventory.Clear();
                 _crate.inventory.capacity = lootItems.Count;
                 ItemManager.DoRemoves();
@@ -777,10 +837,10 @@ namespace Oxide.Plugins
                     lootItem.CreateItem()
                         ?.MoveToContainer(_crate.inventory);
                 }
-                
+
                 lootItems.Clear();
             }
-            
+
             #endregion
 
             #region Cleanup
@@ -795,18 +855,18 @@ namespace Oxide.Plugins
                 if (!completed)
                 {
                     _crate.Kill();
-                    
+
                     return;
                 }
 
                 if (_settings.AutoHack)
                 {
                     _crate.hackSeconds = HackableLockedCrate.requiredHackSeconds - _settings.AutoHackSeconds;
-                    _crate.StartHacking();                    
+                    _crate.StartHacking();
                 }
-                
+
                 _crate.shouldDecay = true;
-                _crate.RefreshDecay();                
+                _crate.RefreshDecay();
             }
 
             private void DespawnPlane()
@@ -832,7 +892,7 @@ namespace Oxide.Plugins
                 }
 
                 _players.Clear();
-            }            
+            }
 
             #endregion
 
@@ -852,16 +912,16 @@ namespace Oxide.Plugins
                 if (player != null)
                 {
                     _plugin.MessageAll("EventEnded", GetGrid(_position), player.displayName);
-                    
+
                     StopEvent(true);
                 }
                 else
                 {
                     _plugin.MessageAll("EventClear", GetGrid(_position));
-                    
+
                     StopEvent();
                 }
-            }            
+            }
 
             public object OnCanHackCrate()
             {
@@ -872,14 +932,14 @@ namespace Oxide.Plugins
 
                 return null;
             }
-            
+
             #endregion
         }
 
         #endregion
 
         #region Component
-        
+
         private class NavigationComponent : MonoBehaviour
         {
             private NPCPlayerApex _npc;
@@ -895,7 +955,7 @@ namespace Oxide.Plugins
             private void OnDestroy()
             {
                 CancelInvoke();
-                
+
                 if (_npc.IsValid() && !_npc.IsDestroyed)
                 {
                     _npc.Kill();
@@ -923,14 +983,14 @@ namespace Oxide.Plugins
                 {
                     return;
                 }
-                
+
                 if (_npc.IsStuck)
                 {
                     DoWarp();
                 }
 
                 if (_npc.GetNavAgent == null || !_npc.GetNavAgent.isOnNavMesh)
-                {    
+                {
                     _npc.finalDestination = _targetPoint;
                 }
                 else
@@ -945,7 +1005,8 @@ namespace Oxide.Plugins
 
             private bool IsOutOfBounds()
             {
-                return _npc.AttackTarget != null && Vector3.Distance(transform.position, _targetPoint) > _npc.Stats.MaxRoamRange;
+                return _npc.AttackTarget != null &&
+                       Vector3.Distance(transform.position, _targetPoint) > _npc.Stats.MaxRoamRange;
             }
 
             private void DoWarp()
@@ -964,7 +1025,7 @@ namespace Oxide.Plugins
             public CrateEvent CrateEvent;
             private CargoPlane _plane;
             private bool _hasDropped;
-            
+
             private void Awake()
             {
                 _plane = GetComponent<CargoPlane>();
@@ -976,11 +1037,11 @@ namespace Oxide.Plugins
                 float time = Mathf.InverseLerp(0.0f, _plane.secondsToTake, _plane.secondsTaken);
 
                 if (_hasDropped || !((double) time >= 0.5)) return;
-                
+
                 _hasDropped = true;
-                    
+
                 CrateEvent?.StartEvent();
-                    
+
                 Destroy(this);
             }
         }
@@ -1005,18 +1066,19 @@ namespace Oxide.Plugins
                 {
                     return;
                 }
-                
-                int size = Physics.OverlapSphereNonAlloc(transform.position + Vector3.up * 0.5f, 1f, Vis.colBuffer, 1218511105);
-                
+
+                int size = Physics.OverlapSphereNonAlloc(transform.position + Vector3.up * 0.5f, 1f, Vis.colBuffer,
+                    1218511105);
+
                 if (size <= 0)
                 {
                     return;
                 }
 
                 _hasLanded = true;
-                
+
                 RemoveChute();
-                
+
                 Interface.CallHook("OnCrateLanded", _crate);
             }
 
@@ -1043,11 +1105,12 @@ namespace Oxide.Plugins
         }
 
         #endregion
-        
+
         #region Helpers
 
-        private string Lang(string key, string id = null, params object[] args) => string.Format(lang.GetMessage(key, this, id), args);
-        
+        private string Lang(string key, string id = null, params object[] args) =>
+            string.Format(lang.GetMessage(key, this, id), args);
+
         private void MessageAll(string key, params object[] args)
         {
             server.Broadcast(Lang(key, null, args));
@@ -1059,32 +1122,32 @@ namespace Oxide.Plugins
             float x = Mathf.Floor(r.x / 146.3f) % 26;
             float z = Mathf.Floor(World.Size / 146.3f) - Mathf.Floor(r.y / 146.3f);
 
-            return $"{(char)('A' + x)}{z - 1}";
+            return $"{(char) ('A' + x)}{z - 1}";
         }
-        
+
         private static Color GetColor(string hex)
         {
             Color color;
-            
+
             return ColorUtility.TryParseHtmlString(hex, out color) ? color : Color.yellow;
         }
 
         private static string GetTime(int seconds)
         {
             TimeSpan time = TimeSpan.FromSeconds(seconds);
-            
+
             return $"{time.Hours:D2}h:{time.Minutes:D2}m:{time.Seconds:D2}s";
         }
-        
+
         private static void GiveKit(NPCPlayerApex npc, string kit, bool giveKit)
         {
             if (!giveKit)
             {
                 return;
             }
-            
+
             Interface.Oxide.CallHook("GiveKit", npc, kit);
-            
+
             npc.Invoke(npc.EquipWeapon, 2f);
         }
 
@@ -1095,8 +1158,44 @@ namespace Oxide.Plugins
 
         #endregion
 
+        #region Command Methods
+
+        private void StartEvent(IPlayer player, string[] args)
+        {
+            if (args.Length == 0)
+            {
+                player.Message(Lang("InvalidSyntax", player.Id));
+
+                return;
+            }
+
+            StartEvent(string.Join(" ", args));
+
+            player.Message(Lang("CreateEvent", player.Id));
+        }
+
+        private void EditEvent(IPlayer player, string[] args)
+        {
+            if (args.Length == 0)
+            {
+                player.Message(Lang("InvalidSyntax", player.Id));
+                return;
+            }
+            
+            //
+        }
+
+        private void StopEvents(IPlayer player)
+        {
+            StopEvents();
+
+            player.Message(Lang("CleanEvents", player.Id));
+        }
+
+        #endregion
+
         #region Command
-        
+
         private void GCCommand(IPlayer player, string command, string[] args)
         {
             if (args.Length < 1)
@@ -1104,11 +1203,14 @@ namespace Oxide.Plugins
                 player.Message(Lang("InvalidSyntax", player.Id));
                 return;
             }
-            
+
             switch (args[0].ToLower())
             {
                 case "start":
                     StartEvent(player, args.Skip(1).ToArray());
+                    break;
+                case "edit":
+                    EditEvent(player, args.Skip(1).ToArray());
                     break;
                 case "stop":
                     StopEvents(player);
