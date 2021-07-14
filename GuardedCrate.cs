@@ -29,7 +29,7 @@ namespace Oxide.Plugins
 
         private readonly List<int> _blockedLayers = new List<int> { (int)Layer.Water, (int)Layer.Construction, (int)Layer.Trigger, (int)Layer.Prevent_Building, (int)Layer.Deployed, (int)Layer.Tree, (int)Layer.Clutter };
         private readonly int _obstructionLayer = LayerMask.GetMask("Player (Server)", "Construction", "Deployed");
-        private static readonly int HeightLayer = LayerMask.GetMask("Terrain", "World", "Default", "Construction", "Deployed", "Clutter");
+        private readonly int _heightLayer = LayerMask.GetMask("Terrain", "World", "Default", "Construction", "Deployed", "Clutter");
         private readonly Dictionary<BaseEntity, CrateEvent> _entities = new Dictionary<BaseEntity, CrateEvent>();
         private readonly HashSet<CrateEvent> _events = new HashSet<CrateEvent>();
         private readonly SpawnFilter _filter = new SpawnFilter();
@@ -461,7 +461,7 @@ namespace Oxide.Plugins
             
             position.y += 200f;
 
-            if (!Physics.Raycast(position, Vector3.down, out hit, position.y, HeightLayer,
+            if (!Physics.Raycast(position, Vector3.down, out hit, position.y, _heightLayer,
                 QueryTriggerInteraction.Ignore))
             {
                 return Vector3.zero;
