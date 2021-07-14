@@ -13,7 +13,7 @@ using Random = UnityEngine.Random;
 
 namespace Oxide.Plugins
 {
-    [Info("Guarded Crate", "Bazz3l", "1.4.9")]
+    [Info("Guarded Crate", "Bazz3l", "1.5.0")]
     [Description("Spawns hackable crate events at random locations guarded by scientists.")]
     public class GuardedCrate : CovalencePlugin
     {
@@ -54,6 +54,12 @@ namespace Oxide.Plugins
                 {
                     throw new Exception();
                 }
+                
+                if (_config.ToDictionary().Keys.SequenceEqual(Config.ToDictionary(x => x.Key, x => x.Value).Keys)) return;
+                
+                PrintWarning("Loaded updated config.");
+                    
+                SaveConfig();
             }
             catch
             {
@@ -65,22 +71,32 @@ namespace Oxide.Plugins
         
         protected override void SaveConfig() => Config.WriteObject(_config);    
         
-        private class PluginConfig
+        private class PluginConfig : SerializableConfiguration
         {
-            [JsonProperty("AutoEvent (enables auto event spawns)")]
-            public bool EnableAutoEvent;
+            [JsonProperty("EnableAutoStart (enables events to spawn automatically)")]
+            public bool EnableAutoStart;
             
-            [JsonProperty("AutoEventDuration (time until new event spawns)")]
-            public float AutoEventDuration;
+            [JsonProperty("EventDuration (time between event spawns)")]
+            public float EventDuration;
+            
+            [JsonProperty("Command (command name)")]
+            public string[] Command = { "gc" };
 
             public static PluginConfig DefaultConfig()
             {
                 return new PluginConfig
                 {
-                    EnableAutoEvent = true,
-                    AutoEventDuration = 1800f
+                    EnableAutoStart = true,
+                    EventDuration = 1800f
                 };
             }
+        }
+
+        private class SerializableConfiguration
+        {
+            public string ToJson() => JsonConvert.SerializeObject(this);
+
+            public Dictionary<string, object> ToDictionary() => JsonConvert.DeserializeObject<Dictionary<string, object>>(ToJson());
         }
 
         #endregion
@@ -205,11 +221,11 @@ namespace Oxide.Plugins
 
         private void OnServerInitialized()
         {
-            AddCovalenceCommand(new [] { "gc" }, nameof(GCCommand), USE_PERM);
+            AddCovalenceCommand(_config.Command, nameof(GCCommand), USE_PERM);
             
-            if (_config.EnableAutoEvent)
+            if (_config.EnableAutoStart)
             {
-                timer.Every(_config.AutoEventDuration, () => StartEvent());
+                timer.Every(_config.EventDuration, () => StartEvent());
             }
             
             timer.Every(30f, RefreshEvents);
@@ -525,7 +541,7 @@ namespace Oxide.Plugins
             {
                 SpawnMarker();
                 SpawnCrate();
-                StartTimer();
+                ResetTimer();
 
                 _plugin.MessageAll("EventStarted", _settings.EventName, GetGrid(_position), GetTime((int)_settings.EventDuration));
             }
@@ -575,7 +591,7 @@ namespace Oxide.Plugins
 
             #region Timer
 
-            private void StartTimer()
+            private void ResetTimer()
             {
                 _timer?.Destroy();
                 _timer = _plugin.timer.Once(_settings.EventDuration, () => StopEvent());
@@ -837,7 +853,7 @@ namespace Oxide.Plugins
 
                 if (_players.Count > 0)
                 {
-                    StartTimer();
+                    ResetTimer();
 
                     return;
                 }
