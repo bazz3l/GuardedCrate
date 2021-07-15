@@ -27,14 +27,19 @@ namespace Oxide.Plugins
         private const string NPC_PREFAB = "assets/prefabs/npc/scientist/scientist.prefab";
         private const string PLANE_PREFAB = "assets/prefabs/npc/cargo plane/cargo_plane.prefab";
 
-        private readonly List<int> _blockedLayers = new List<int>
-        {
-            (int) Layer.Water, (int) Layer.Construction, (int) Layer.Trigger, (int) Layer.Prevent_Building,
-            (int) Layer.Deployed, (int) Layer.Tree, (int) Layer.Clutter
-        };
-
         private readonly int _obstructionLayer = LayerMask.GetMask("Player (Server)", "Construction", "Deployed");
         private readonly int _heightLayer = LayerMask.GetMask("Terrain", "World", "Default", "Construction", "Deployed", "Clutter");
+        private readonly List<int> _blockedLayers = new List<int>
+        {
+            (int) Layer.Water, 
+            (int) Layer.Construction, 
+            (int) Layer.Trigger, 
+            (int) Layer.Prevent_Building,
+            (int) Layer.Deployed, 
+            (int) Layer.Tree, 
+            (int) Layer.Clutter
+        };
+        
         private readonly Dictionary<BaseEntity, CrateEvent> _entities = new Dictionary<BaseEntity, CrateEvent>();
         private readonly HashSet<CrateEvent> _events = new HashSet<CrateEvent>();
         private readonly List<Monument> _monuments = new List<Monument>();
@@ -265,16 +270,29 @@ namespace Oxide.Plugins
         private void OnEntityKill(NPCPlayerApex npc) =>
             FindEntityEvent(npc)
                 ?.OnNPCDeath(npc, null);
+        
+        private object OnNpcTarget(NPCPlayerApex npc, BasePlayer player)
+        {
+            if (FindEntityEvent(npc) == null)
+            {
+                return null;
+            }
+            
+            if (player != null && player.IsNpc)
+            {
+                return true;
+            }
+
+            return null;
+        }
 
         private void OnCrateLanded(HackableLockedCrate crate) =>
             FindEntityEvent(crate)
                 ?.StartRoutine();
 
-        private object CanHackCrate(BasePlayer player, HackableLockedCrate crate)
-        {
-            return FindEntityEvent(crate)
+        private object CanHackCrate(BasePlayer player, HackableLockedCrate crate) => 
+            FindEntityEvent(crate)
                 ?.OnCanHackCrate();
-        }
 
         #endregion
 
@@ -425,7 +443,7 @@ namespace Oxide.Plugins
 
         #region Position
 
-        private Vector3 GetRandomPosition()
+        private Vector3 GetPosition()
         {
             Vector3 vector;
 
@@ -433,13 +451,13 @@ namespace Oxide.Plugins
 
             do
             {
-                vector = ValidPosition(FindNewPosition());
+                vector = IsValidPosition(FindRandomPosition());
             } while (vector == Vector3.zero && --num > 0f);
 
             return vector;
         }
 
-        private Vector3 FindNewPosition()
+        private Vector3 FindRandomPosition()
         {
             Vector3 vector;
 
@@ -456,7 +474,7 @@ namespace Oxide.Plugins
             return vector;
         }
 
-        private Vector3 ValidPosition(Vector3 position)
+        private Vector3 IsValidPosition(Vector3 position)
         {
             RaycastHit hit;
 
@@ -533,16 +551,15 @@ namespace Oxide.Plugins
 
             public Monument(MonumentInfo monumentInfo)
             {
-                Position = monumentInfo.transform.position;
-
                 Vector3 size = monumentInfo.Bounds.extents;
-
+                
                 if (size.z < 50f)
                 {
                     size.z = 120f;
                 }
 
                 Size = size;
+                Position = monumentInfo.transform.position;
             }
         }
 
@@ -552,9 +569,7 @@ namespace Oxide.Plugins
         {
             #region Fields
 
-            private readonly HashSet<NPCPlayerApex> _players = new HashSet<NPCPlayerApex>();
-            private readonly HashSet<string> _blocked = new HashSet<string>();
-
+            private readonly HashSet<NPCPlayerApex> _npcs = new HashSet<NPCPlayerApex>();
             private MapMarkerGenericRadius _marker;
             private HackableLockedCrate _crate;
             private Coroutine _coroutine;
@@ -576,7 +591,7 @@ namespace Oxide.Plugins
             public void SetupEvent(EventSetting settings)
             {
                 _settings = settings;
-                _position = _plugin.GetRandomPosition(); /*new Vector3(-1804f, 15.9f, -1574f);*/
+                _position = _plugin.GetPosition(); /*new Vector3(-1804f, 15.9f, -1574f);*/
 
                 if (_position == Vector3.zero)
                 {
@@ -655,14 +670,14 @@ namespace Oxide.Plugins
 
             void CacheAdd(NPCPlayerApex player)
             {
-                _players.Add(player);
+                _npcs.Add(player);
 
                 _plugin.AddEntity(player, this);
             }
 
-            void CacheDel(NPCPlayerApex player)
+            void CacheRemove(NPCPlayerApex player)
             {
-                _players.Remove(player);
+                _npcs.Remove(player);
 
                 _plugin.DelEntity(player);
             }
@@ -883,7 +898,7 @@ namespace Oxide.Plugins
 
             private void DespawnAI()
             {
-                foreach (NPCPlayerApex npc in _players.ToList())
+                foreach (NPCPlayerApex npc in _npcs.ToList())
                 {
                     if (!IsValid(npc))
                     {
@@ -893,7 +908,7 @@ namespace Oxide.Plugins
                     npc.Kill();
                 }
 
-                _players.Clear();
+                _npcs.Clear();
             }
 
             #endregion
@@ -902,9 +917,9 @@ namespace Oxide.Plugins
 
             public void OnNPCDeath(NPCPlayerApex npc, BasePlayer player)
             {
-                CacheDel(npc);
+                CacheRemove(npc);
 
-                if (_players.Count > 0)
+                if (_npcs.Count > 0)
                 {
                     ResetTimer();
 
@@ -927,7 +942,7 @@ namespace Oxide.Plugins
 
             public object OnCanHackCrate()
             {
-                if (_players.Count > 0)
+                if (_npcs.Count > 0)
                 {
                     return false;
                 }
